@@ -43,6 +43,25 @@ jobs:
         run: bash scripts/build-macos-resources.sh
       - name: Check and build the installer
         run: pnpm exec tauri build --bundles ${{ matrix.bundle }}
+      - name: Install and launch Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer not found' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'FuckMeetings-smoke'
+          $setup = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+          $binary = Get-ChildItem -Path $installDir -Filter 'interview-kit.exe' -Recurse | Select-Object -First 1
+          if (-not $binary) { throw 'Installed application executable not found' }
+          $process = Start-Process -FilePath $binary.FullName -PassThru
+          try {
+            Start-Sleep -Seconds 15
+            $process.Refresh()
+            if ($process.HasExited) { throw "Application exited during launch: $($process.ExitCode)" }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
