@@ -237,14 +237,18 @@ export function OverlayPage() {
     <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-ink-600/80 bg-ink-900/95 text-mist-100 shadow-2xl" style={{ opacity: opacity / 100 }}>
       
       <header
-        data-tauri-drag-region
-        className="flex shrink-0 items-center gap-2 border-b border-ink-700/80 bg-ink-850/95 px-3 py-2"
+        onMouseDown={(event) => {
+          if (event.button !== 0 || (event.target as HTMLElement).closest("button, input, label")) return;
+          event.preventDefault();
+          void getCurrentWindow().startDragging().catch((err) => setError(`Не удалось переместить окно: ${errMsg(err)}`));
+        }}
+        title={tr("Зажмите и перетащите панель")}
+        className="flex shrink-0 cursor-grab select-none items-center gap-2 border-b border-ink-700/80 bg-ink-850/95 px-3 py-2 active:cursor-grabbing"
       >
         
         <img src="/interviewkit-logo.png" alt="" className="h-5 w-5 shrink-0 rounded" />
         
         <span
-          data-tauri-drag-region
           className="min-w-0 flex-1 truncate text-[12px] font-semibold"
         >
           {tr("FuckMeetings · оверлей")}

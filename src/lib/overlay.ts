@@ -6,11 +6,15 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { ShortcutAction, Shortcuts } from "./types";
 
-export const DEFAULT_SHORTCUTS: Shortcuts = {
+export const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
+export const LEGACY_SHORTCUTS: Shortcuts = {
   show: "Control+Shift+O", clickThrough: "Control+Shift+Space", send: "Control+Shift+Enter",
   screen: "Control+Shift+S", region: "Control+Shift+R",
   up: "Control+Shift+Up", down: "Control+Shift+Down", left: "Control+Shift+Left", right: "Control+Shift+Right",
 };
+export const DEFAULT_SHORTCUTS: Shortcuts = IS_MAC
+  ? Object.fromEntries(Object.entries(LEGACY_SHORTCUTS).map(([action, key]) => [action, key.replace(/^Control\+/, "Super+")])) as Shortcuts
+  : { ...LEGACY_SHORTCUTS };
 export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   show: "Показать или скрыть помощника", clickThrough: "Включить или выключить сквозные клики", send: "Отправить распознанный вопрос",
   screen: "Отправить снимок всего экрана", region: "Отправить выбранную область",
@@ -24,8 +28,8 @@ export async function toggleOverlay(): Promise<void> {
   const overlay = await getOverlayWindow(); if (!overlay) return;
   if (await overlay.isVisible()) await overlay.hide(); else { await overlay.show(); await overlay.setFocus(); }
 }
-export function hotkeyLabel(key: string): string { return key.replace(/CommandOrControl|CmdOrCtrl|Control/g, "Ctrl").replace(/\+/g, " + "); }
-export function normalizeShortcut(key: string): string { return key.replace(/CommandOrControl|CmdOrCtrl|Ctrl/gi, "Control").replace(/\s/g, "").toLowerCase(); }
+export function hotkeyLabel(key: string): string { return key.replace(/CommandOrControl|CmdOrCtrl/gi, IS_MAC ? "Cmd" : "Ctrl").replace(/Super|Command|Meta/gi, IS_MAC ? "Cmd" : "Win").replace(/Control/gi, "Ctrl").replace(/\+/g, " + "); }
+export function normalizeShortcut(key: string): string { return key.replace(/CommandOrControl|CmdOrCtrl/gi, IS_MAC ? "Super" : "Control").replace(/Command|Cmd|Meta/gi, "Super").replace(/Ctrl/gi, "Control").replace(/\s/g, "").toLowerCase(); }
 let registered: Partial<Record<ShortcutAction, string>> = {};
 let desired: Shortcuts = { ...DEFAULT_SHORTCUTS };
 let paused = false;
@@ -47,10 +51,8 @@ async function captureAndSend(region: boolean) {
     try { image = await invoke<string>("capture_screen"); }
     finally { if (wasVisible) await overlay?.show(); await emitTo("overlay", "capture-in-progress", false); }
     if (region) {
-      const selection = await WebviewWindow.getByLabel("selection");
-      if (!selection) throw new Error("Окно выбора области недоступно.");
+      await invoke("open_selection");
       await emitTo("selection", "selection-open");
-      await selection.show(); await selection.setFocus();
     } else {
       if (!wasVisible) await overlay?.show();
       await emitTo("overlay", "overlay-screen-send", image);

@@ -2,7 +2,7 @@ import { tr } from "../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { Keyboard } from "lucide-react";
 import { Button, Card } from "../components/ui";
-import { DEFAULT_SHORTCUTS, SHORTCUT_ACTIONS, SHORTCUT_LABELS, finishShortcutCapture, hotkeyLabel, pauseShortcutCapture, useHotkey } from "../lib/overlay";
+import { DEFAULT_SHORTCUTS, IS_MAC, SHORTCUT_ACTIONS, SHORTCUT_LABELS, finishShortcutCapture, hotkeyLabel, pauseShortcutCapture, useHotkey } from "../lib/overlay";
 import { saveSettings, useSettings } from "../lib/settings";
 import type { ShortcutAction } from "../lib/types";
 
@@ -51,7 +51,7 @@ export function ShortcutsPage() {
       if (e.repeat) return;
       if (e.key === "Escape") { void finish(capture); return; }
       const key = keyFromEvent(e); if (key) void finish(capture, key);
-      else if (!["Control", "Alt", "Shift", "Meta"].includes(e.key)) setMessage("Используйте Ctrl, Alt или Win вместе с другой клавишей.");
+      else if (!["Control", "Alt", "Shift", "Meta"].includes(e.key)) setMessage(IS_MAC ? "Используйте Cmd, Ctrl или Option вместе с другой клавишей." : "Используйте Ctrl, Alt или Win вместе с другой клавишей.");
     };
     window.addEventListener("keydown", listener, true); return () => window.removeEventListener("keydown", listener, true);
   }, [capture]);

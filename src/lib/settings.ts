@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { PROVIDERS, PROVIDER_ORDER } from "./providers";
 import { DEFAULT_SYSTEM_PROMPT } from "./prompts";
-import { DEFAULT_SHORTCUTS } from "./overlay";
+import { DEFAULT_SHORTCUTS, IS_MAC, LEGACY_SHORTCUTS, SHORTCUT_ACTIONS } from "./overlay";
 import type { ProviderConfig, ProviderId, Settings } from "./types";
 
 export function makeDefaultSettings(): Settings {
@@ -112,6 +112,10 @@ export async function initSettings(): Promise<void> {
       const merged = deepMerge(makeDefaultSettings(), saved);
       if (/^(CommandOrControl|CmdOrCtrl|Control|Ctrl)\+Shift\+Space$/i.test(merged.overlayHotkey)) merged.overlayHotkey = "CommandOrControl+Shift+O";
       if (!saved.shortcuts && merged.overlayHotkey) merged.shortcuts.show = merged.overlayHotkey;
+      // Upgrade only the old built-in bindings; preserve customized shortcuts.
+      if (IS_MAC && saved.shortcuts) for (const action of SHORTCUT_ACTIONS) {
+        if (saved.shortcuts[action] === LEGACY_SHORTCUTS[action]) merged.shortcuts[action] = DEFAULT_SHORTCUTS[action];
+      }
       useSettings.setState({ settings: merged });
     }
   } catch (err) {
@@ -124,8 +128,10 @@ let persistBound = false;
 function bindPersist(): void {
   if (persistBound) return;
   persistBound = true;
-  useSettings.subscribe((state) => {
-    if (!state.loaded || applyingRemote) return;
+  useSettings.subscribe((state, previous) => {
+    // Becoming ready is not a settings edit. Other windows may have loaded an
+    // older snapshot, which must not overwrite a user's newly saved shortcuts.
+    if (!state.loaded || applyingRemote || state.settings === previous.settings) return;
     getStore()
       .then((st) => st.set("settings", state.settings))
       .catch((err) => console.error("Не удалось сохранить настройки:", err));

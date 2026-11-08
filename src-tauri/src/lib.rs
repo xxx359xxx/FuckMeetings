@@ -1,11 +1,18 @@
 mod agents;
+mod codex_connect;
 mod files;
 mod llm;
 mod local_models;
+mod macos_audio;
 mod screen_capture;
 mod transcribe;
 
 use llm::AppState;
+
+#[tauri::command]
+fn updater_configured(app: tauri::AppHandle) -> bool {
+    app.config().plugins.0.contains_key("updater")
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -37,17 +44,34 @@ pub fn run() {
             local_models::delete_local_model,
             local_models::list_local_models,
             local_models::activate_local_model,
+            macos_audio::start_mac_audio,
+            macos_audio::stop_mac_audio,
+            updater_configured,
             screen_capture::capture_screen,
+            screen_capture::open_selection,
             screen_capture::get_pending_capture,
             screen_capture::clear_pending_capture,
             llm::llm_chat,
             llm::llm_cancel,
             agents::run_agent,
+            codex_connect::connect_codex,
             files::read_file_base64,
             files::write_file_base64,
         ]);
 
     builder = builder.plugin(tauri_plugin_system_audio::init());
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_process::init());
+        builder = builder.setup(|app| {
+            if app.config().plugins.0.contains_key("updater") {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+            Ok(())
+        });
+    }
+    #[cfg(target_os = "macos")]
+    { builder = builder.manage(macos_audio::MacAudioState::default()); }
 
     #[cfg(desktop)]
     {

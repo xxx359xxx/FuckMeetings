@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "macOS": { "signingIdentity": "-", "hardenedRuntime": false },
+    "resources": {
+      "resources/whisper/whisper-cli": "whisper/whisper-cli",
+      "resources/whisper/LICENSE": "whisper/LICENSE",
+      "resources/whisper/libsystem-audio.dylib": "whisper/libsystem-audio.dylib"
+    }
+  }
+}

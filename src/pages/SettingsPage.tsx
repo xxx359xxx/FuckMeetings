@@ -31,7 +31,7 @@ import { cn, errMsg } from "../lib/utils";
 
 
 const SETUP: Record<ProviderId, { description: string; link?: string; label?: string }> = {
-  codex: { description: "Установите Codex CLI и войдите в свой аккаунт ChatGPT. Затем проверьте соединение; модель можно оставить пустой." },
+  codex: { description: "Подключите установленный Codex. Если потребуется вход, подтвердите его в браузере; модель можно оставить пустой." },
   openai: { description: "Создайте API-ключ в кабинете OpenAI, вставьте его ниже и выберите модель. Доступ к API и его оплата могут отличаться от подписки ChatGPT.", link: "https://platform.openai.com/api-keys", label: "Открыть кабинет OpenAI" },
   anthropic: { description: "Создайте API-ключ Claude в консоли Anthropic, вставьте его ниже и выберите модель. Доступ и оплата API настраиваются в консоли.", link: "https://platform.claude.com/settings/keys", label: "Открыть консоль Claude" },
   gemini: { description: "Создайте ключ Gemini API в Google AI Studio, вставьте его ниже и выберите модель. Доступ и лимиты зависят от проекта.", link: "https://aistudio.google.com/app/apikey", label: "Открыть Google AI Studio" },
@@ -67,6 +67,23 @@ export function SettingsPage() {
   const cfg = settings.providers[settings.activeProvider];
 
   const [showKey, setShowKey] = useState(false);
+  const [connectingCodex, setConnectingCodex] = useState(false);
+  const [codexStatus, setCodexStatus] = useState("");
+  const [codexUrl, setCodexUrl] = useState("");
+  async function connectCodex() {
+    setConnectingCodex(true); setCodexStatus("Проверяю Codex и состояние входа…"); setCodexUrl(""); setTestResult(null);
+    const channel = new Channel<{ type: "browser"; url: string } | { type: "status"; message: string }>();
+    channel.onmessage = (event) => {
+      if (event.type === "status") setCodexStatus(event.message);
+      else { setCodexUrl(event.url); void openUrl(event.url).catch(() => setCodexStatus("Не удалось открыть браузер. Нажмите ссылку для входа ниже.")); }
+    };
+    try {
+      await invoke("connect_codex", { onEvent: channel });
+      patch({ activeProvider: "codex" }); await saveSettings();
+      setCodexUrl(""); setCodexStatus("Codex подключён и выбран. Отправьте тестовый запрос, чтобы проверить доступ к модели.");
+    } catch (e) { setCodexUrl(""); setCodexStatus(`Не удалось подключить Codex: ${errMsg(e)}`); }
+    finally { setConnectingCodex(false); }
+  }
   const [transcriptionError, setTranscriptionError] = useState("");
   const [transcriptionStatus, setTranscriptionStatus] = useState("");
   const [checkingTranscriber, setCheckingTranscriber] = useState(false);
@@ -235,6 +252,11 @@ export function SettingsPage() {
           <div className="mt-4 rounded-lg border border-ink-700 bg-ink-850/60 p-3 text-xs leading-relaxed text-mist-300">
             
             <p>{tr(SETUP[provider.id].description)}</p>
+            {provider.id === "codex" && <div className="mt-3 space-y-2">
+              <Button variant="primary" disabled={connectingCodex} onClick={() => void connectCodex()}>{connectingCodex ? "Подключаю…" : "Подключить Codex"}</Button>
+              {codexStatus && <p role="status">{codexStatus}</p>}
+              {codexUrl && <button className="text-accent-400 underline" onClick={() => void openUrl(codexUrl).catch((e) => setCodexStatus(`Не удалось открыть браузер: ${errMsg(e)}`))}>Открыть страницу входа ↗</button>}
+            </div>}
             
             
             

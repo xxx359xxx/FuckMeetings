@@ -74,10 +74,14 @@ async fn download(url: &str, path: &Path, size: u64, hash: &str, stage: &str, pr
 }
 #[tauri::command]
 pub async fn install_local_model(app: tauri::AppHandle, model: String, on_progress: Channel<InstallProgress>) -> Result<InstalledModel, String> {
-    if !cfg!(all(target_os = "windows", target_arch = "x86_64")) { return Err("Автоматическая установка доступна для Windows x64".into()); }
+    if !cfg!(any(all(target_os = "windows", target_arch = "x86_64"), all(target_os = "macos", target_arch = "aarch64"))) { return Err("Автоматическая установка доступна для Windows x64 и Mac с Apple Silicon".into()); }
     let (filename, size, sha) = model_info(&model).ok_or("Неизвестная модель")?;
     let root: PathBuf = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
     std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let exe = bundled_engine(&app)?;
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    let exe = {
     let archive = root.join("whisper-b5454.zip");
     download("https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip", &archive, 8928640, "6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb", "engine", &on_progress).await?;
     let engine = root.join("engine-b5454"); std::fs::create_dir_all(&engine).map_err(|e| e.to_string())?;
@@ -88,9 +92,18 @@ pub async fn install_local_model(app: tauri::AppHandle, model: String, on_progre
 
     }
     if !exe.is_file() { return Err("В архиве не найден whisper-cli.exe".into()); }
+    exe
+    };
     let model_path = root.join(filename);
     download(&format!("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{filename}"), &model_path, size, sha, "model", &on_progress).await?;
     Ok(InstalledModel { executable: exe.to_string_lossy().into_owned(), model_path: model_path.to_string_lossy().into_owned() })
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn bundled_engine(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let exe = app.path().resource_dir().map_err(|e| e.to_string())?.join("whisper").join("whisper-cli");
+    if !exe.is_file() { return Err("Движок whisper.cpp не найден в приложении. Переустановите приложение из DMG.".into()); }
+    Ok(exe)
 }
 
 #[tauri::command]
@@ -122,10 +135,15 @@ pub fn list_local_models(app: tauri::AppHandle) -> Result<Vec<LocalModelInfo>, S
 #[tauri::command]
 pub async fn activate_local_model(app: tauri::AppHandle, model: String) -> Result<InstalledModel, String> {
     let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let bundled = bundled_engine(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let (filename, size, hash) = model_info(&model).ok_or("Неизвестная модель")?;
         let path = root.join(filename);
         if !valid(&path, size, hash) { return Err("Файл модели отсутствует или повреждён. Скачайте его снова.".into()); }
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        let exe = bundled;
+        #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
         let exe = root.join("engine-b5454").join("Release").join("whisper-cli.exe");
         if !exe.is_file() { return Err("Движок распознавания не найден. Нажмите «Скачать и применить», чтобы восстановить его.".into()); }
         Ok(InstalledModel { executable: exe.to_string_lossy().into_owned(), model_path: path.to_string_lossy().into_owned() })

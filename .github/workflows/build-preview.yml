@@ -1,0 +1,51 @@
+name: Build desktop preview
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            bundle: nsis
+            artifact: windows-preview
+            path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          - os: macos-15
+            label: macOS Apple Silicon
+            bundle: dmg
+            artifact: macos-arm64-preview
+            path: src-tauri/target/release/bundle/dmg/*.dmg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Show Rust version
+        run: rustup show active-toolchain
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build macOS audio and Whisper resources
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos-resources.sh
+      - name: Check and build the installer
+        run: pnpm exec tauri build --bundles ${{ matrix.bundle }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 7
