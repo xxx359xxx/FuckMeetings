@@ -1,0 +1,255 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #06080c;
+  --color-ink-900: #0a0e14;
+  --color-ink-850: #0e141d;
+  --color-ink-800: #121a25;
+  --color-ink-700: #1b2634;
+  --color-ink-600: #26364a;
+  --color-ink-500: #3a4d66;
+  --color-mist-400: #8ba0b8;
+  --color-mist-300: #aabdd2;
+  --color-mist-200: #c9d8e8;
+  --color-mist-100: #e6eef7;
+  --color-accent-400: #8b8cf7;
+  --color-accent-500: #6c6df0;
+  --color-accent-600: #5859e0;
+  --color-emerald-glow: #34d399;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  background: var(--color-ink-950);
+  color: var(--color-mist-100);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+::selection {
+  background: rgba(108, 109, 240, 0.35);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-600) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #22303f;
+  border-radius: 999px;
+  border: 2px solid var(--color-ink-950);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #33465c;
+}
+
+.font-mono {
+  font-family:
+    "JetBrains Mono", "Cascadia Code", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+}
+
+/* Markdown rendering inside chat bubbles */
+.markdown {
+  line-height: 1.65;
+  word-break: break-word;
+}
+.markdown > *:first-child {
+  margin-top: 0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  font-weight: 650;
+  color: var(--color-mist-100);
+  margin: 1.1em 0 0.5em;
+  line-height: 1.25;
+}
+.markdown h1 {
+  font-size: 1.35rem;
+}
+.markdown h2 {
+  font-size: 1.2rem;
+}
+.markdown h3 {
+  font-size: 1.05rem;
+}
+.markdown p {
+  margin: 0.6em 0;
+}
+.markdown ul,
+.markdown ol {
+  margin: 0.6em 0;
+  padding-left: 1.4em;
+}
+.markdown li {
+  margin: 0.25em 0;
+}
+.markdown a {
+  color: var(--color-accent-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown strong {
+  color: var(--color-mist-100);
+  font-weight: 650;
+}
+.markdown blockquote {
+  border-left: 3px solid var(--color-ink-600);
+  margin: 0.8em 0;
+  padding: 0.2em 0 0.2em 1em;
+  color: var(--color-mist-400);
+}
+.markdown code {
+  font-family:
+    "JetBrains Mono", "Cascadia Code", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+  font-size: 0.86em;
+  background: rgba(38, 54, 74, 0.55);
+  border: 1px solid rgba(58, 77, 102, 0.45);
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+}
+.markdown pre {
+  background: #060a0f;
+  border: 1px solid var(--color-ink-700);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+.markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 0.84em;
+  line-height: 1.55;
+}
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.9em;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--color-ink-700);
+  padding: 6px 10px;
+  text-align: left;
+}
+.markdown th {
+  background: rgba(27, 38, 52, 0.6);
+  font-weight: 600;
+}
+.markdown hr {
+  border: 0;
+  border-top: 1px solid var(--color-ink-700);
+  margin: 1.2em 0;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 109, 240, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(108, 109, 240, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 109, 240, 0);
+  }
+}
+.recording-dot {
+  animation: pulse-ring 1.6s infinite;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-slow {
+  animation: spin-slow 1.4s linear infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fade-up 0.25s ease both;
+}
+
+/* InterviewKit editorial theme. The same components share both palettes. */
+:root[data-theme="light"] {
+  --color-ink-950: #f6f3f1;
+  --color-ink-900: #fffdfc;
+  --color-ink-850: #f9f7f6;
+  --color-ink-800: #f0edec;
+  --color-ink-700: #e4dedd;
+  --color-ink-600: #d2cbca;
+  --color-ink-500: #716e7b;
+  --color-mist-400: #625e70;
+  --color-mist-300: #4d495d;
+  --color-mist-200: #302d43;
+  --color-mist-100: #171429;
+  --color-accent-400: #4539a7;
+  --color-accent-500: #30277d;
+  --color-accent-600: #21195f;
+  --color-emerald-glow: #12836b;
+}
+:root[data-theme="dark"] {
+  --color-ink-950: #11111d;
+  --color-ink-900: #191928;
+  --color-ink-850: #202031;
+  --color-ink-800: #27273a;
+  --color-ink-700: #39394f;
+  --color-ink-600: #50506b;
+  --color-ink-500: #a19fb6;
+  --color-mist-400: #aaa8be;
+  --color-mist-300: #c8c5d5;
+  --color-mist-200: #dfdce8;
+  --color-mist-100: #f6f4fa;
+  --color-accent-400: #bcb3ff;
+  --color-accent-500: #7766dd;
+  --color-accent-600: #6554c8;
+}
+:root[data-theme="light"] .markdown pre { background: #f1eef8; }
+:root[data-theme="light"] .markdown code { background: #efedf6; border-color: #ded9eb; }
+:root[data-theme="light"] .markdown th { background: #f0edf5; }
+:root[data-theme="light"] .text-red-300 { color: #a42035; }
+:root[data-theme="light"] .text-amber-300 { color: #81520c; }
+:root[data-theme="light"] .text-emerald-300,
+:root[data-theme="light"] .text-emerald-400 { color: #087556; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c9c2c8; border-color: #f6f3f1; }
+
+/* The small recording control is an irregular floating surface. */
+:root[data-window="meeting-control"],
+:root[data-window="meeting-control"] body,
+:root[data-window="meeting-control"] #root {
+  background: transparent !important;
+}
