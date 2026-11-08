@@ -81,6 +81,7 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "den4iksoftware",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

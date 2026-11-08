@@ -27,7 +27,7 @@ release
 
 # Editor directories and files
 .vscode/*
-!.vscode/extensions.json
+.codex/
 .idea
 .DS_Store
 *.suo
