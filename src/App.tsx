@@ -13,6 +13,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { ShortcutsPage } from "./pages/ShortcutsPage";
 import { MeetingControl } from "./pages/MeetingControl";
 import { ScreenSelectionPage } from "./pages/ScreenSelectionPage";
+import { UpdateBanner } from "./components/UpdateBanner";
 
 const WINDOW_LABEL = getCurrentWindow().label;
 const IS_OVERLAY = WINDOW_LABEL === "overlay";
@@ -74,7 +75,9 @@ export default function App() {
   return (
     <div className="flex h-full">
       <Sidebar tab={tab} onTab={setTab} settings={settings} />
-      <main className="min-w-0 flex-1">
+      <main className="flex min-w-0 flex-1 flex-col">
+        <UpdateBanner />
+        <div className="min-h-0 flex-1">
         {tab === "interview" && (
           <InterviewContextPage />
         )}
@@ -84,6 +87,7 @@ export default function App() {
         <div className={tab === "meetings" ? "h-full" : "hidden"}><MeetingsPage onOpenSettings={() => setTab("settings")} /></div>
         {tab === "settings" && <SettingsPage />}
         {tab === "shortcuts" && <ShortcutsPage />}
+        </div>
       </main>
     </div>
   );

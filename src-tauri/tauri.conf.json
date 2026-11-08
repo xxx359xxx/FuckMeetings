@@ -42,6 +42,7 @@
       },
       {
         "label": "selection",
+        "create": false,
         "title": "Выберите область",
         "url": "index.html",
         "fullscreen": true,
@@ -88,5 +89,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGOEE4NzJCMTI5MkYyODMKUldTRDhwSVNLNGVLejlwa09yanFYRmJWTHRzK1R5OElZc1B2MGY5dTJrWHJNWE8xdWsrVXI2ZjEK",
+      "endpoints": [
+        "https://github.com/xxx359xxx/FuckMeetings/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }

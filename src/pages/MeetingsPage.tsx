@@ -13,11 +13,12 @@ import { base64ToBytes, readFileBytes, writeFileBytes } from "../lib/resume";
 import { transcribeRecording, toWhisperWav } from "../lib/transcription";
 import { useSettings } from "../lib/settings";
 import { cn, errMsg } from "../lib/utils";
+import { useUpdateGate } from "../lib/updateGate";
 
 type AudioTrack = { bytes: Uint8Array; name: string };
 type Recording = { kind: "separate"; microphone: AudioTrack; system: AudioTrack } | { kind: "single"; audio: AudioTrack };
 
-type ActiveCapture = { streams: MediaStream[]; recorders: MediaRecorder[]; stopping: boolean };
+type ActiveCapture = { streams: MediaStream[]; recorders: MediaRecorder[]; stopping: boolean; macSystem: boolean; systemResult?: Promise<{ value: string } | { error: string }> };
 
 type AudioEvent =
   | { kind: "pcm"; source: "mic" | "loopback"; samples_base64: string }
@@ -71,6 +72,10 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
   const [systemHeard, setSystemHeard] = useState(false);
   const mounted = useRef(true);
   const separated = recordingData?.kind === "separate";
+  const updating = useUpdateGate((s) => s.installing);
+  useEffect(() => {
+    useUpdateGate.setState({ meetingActive: starting || recording, meetingData: !!recordingData || !!transcript || !!myTranscript || !!otherTranscript || !!summary });
+  }, [starting, recording, recordingData, transcript, myTranscript, otherTranscript, summary]);
 
   function stopCapture() {
     const native = nativeCapture.current;
@@ -101,6 +106,7 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
     const session = capture.current;
     if (!session || session.stopping) return;
     session.stopping = true;
+    if (session.macSystem) session.systemResult = invoke<string>("stop_mac_audio").then((value) => ({ value }), (error) => ({ error: errMsg(error) }));
     session.recorders.forEach((r) => { if (r.state !== "inactive") r.stop(); });
   }
   stopRef.current = () => { if (!recordingRef.current) return; pendingTranscription.current = true; stopCapture(); };
@@ -142,9 +148,11 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
   }
 
   async function record() {
-    if (starting || recording) return;
+    if (starting || recording || useUpdateGate.getState().installing) return;
+    useUpdateGate.setState({ meetingActive: true });
     setStarting(true); setError("");
     const streams: MediaStream[] = [];
+    let macSystemStarted = false;
     try {
       if (mode === "both" && /Windows/i.test(navigator.userAgent)) {
         const channel = new Channel<AudioEvent>();
@@ -170,17 +178,19 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
       }
       // Screen capture must be requested directly from the button click, before other awaits.
       let system: MediaStream | null = null;
-      if (mode === "both") {
+      const macSystem = mode === "both" && /Mac/i.test(navigator.platform || navigator.userAgent);
+      if (mode === "both" && !macSystem) {
         if (!navigator.mediaDevices.getDisplayMedia) throw new Error("Этот WebView не поддерживает захват системного звука. Выберите только микрофон или загрузите запись.");
         system = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         streams.push(system);
-        if (!system.getAudioTracks().length) throw new Error("Звук наушников не передан. Выберите весь экран и включите передачу системного звука в окне выбора.");
+        if (!system.getAudioTracks().length) throw new Error("Системный звук не передан. Выберите только микрофон или загрузите аудиозапись.");
       }
       const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
       streams.push(mic);
+      if (macSystem) { await invoke("start_mac_audio"); macSystemStarted = true; }
       const selected = system ? [mic, system] : [mic];
       const recorders = selected.map((s) => new MediaRecorder(new MediaStream(s.getAudioTracks())));
-      const session: ActiveCapture = { streams, recorders, stopping: false };
+      const session: ActiveCapture = { streams, recorders, stopping: false, macSystem };
       capture.current = session;
       const outputs = recorders.map((rec) => new Promise<Blob>((resolve, reject) => {
         const chunks: BlobPart[] = [];
@@ -197,7 +207,18 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
         if (tracks.some((track) => !track.bytes.length)) throw new Error("Одна из дорожек записи пуста. Проверьте источники звука.");
         if (!mounted.current) return;
         if (system) setRecordingData({ kind: "separate", microphone: tracks[0], system: tracks[1] });
-        else setRecordingData({ kind: "single", audio: tracks[0] });
+        else if (macSystem) {
+          try {
+            if (!session.systemResult) throw new Error("Запись системного звука не была завершена.");
+            const result = await session.systemResult;
+            if ("error" in result) throw new Error(result.error);
+            const bytes = base64ToBytes(result.value);
+            setRecordingData({ kind: "separate", microphone: tracks[0], system: { bytes, name: "meeting-system.wav" } });
+          } catch (e) {
+            setRecordingData({ kind: "single", audio: tracks[0] });
+            setError(`Сохранён только микрофон. Не удалось получить системный звук: ${errMsg(e)}`);
+          }
+        } else setRecordingData({ kind: "single", audio: tracks[0] });
         clearTexts();
       }).catch((e) => { if (mounted.current) setError(`Не удалось сохранить запись: ${errMsg(e)}`); }).finally(() => {
         streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
@@ -205,6 +226,7 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
         if (mounted.current) setRecording(false);
       });
     } catch (e) {
+      if (macSystemStarted) { try { await invoke("stop_mac_audio"); } catch { /* preserve the original error */ } }
       streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
       capture.current = null;
       const detail = errMsg(e);
@@ -280,9 +302,9 @@ export function MeetingsPage({ onOpenSettings }: { onOpenSettings: () => void })
         
         <div className={cn("text-xs font-medium", recording ? "text-red-400" : "text-mist-400")}>{recording && <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />}{tr(durationMessage)}</div>
         
-        {recording ? <Button onClick={() => stopRef.current()} className="min-w-52"><Square size={16} /> {tr("Остановить запись")}</Button> : <Button variant="primary" onClick={() => void record()} disabled={starting || !!busy} className="min-w-52"><Play size={16} fill="currentColor" />{starting ? tr("Запускаю…") : tr("Начать запись")}</Button>}
+        {recording ? <Button onClick={() => stopRef.current()} className="min-w-52"><Square size={16} /> {tr("Остановить запись")}</Button> : <Button variant="primary" onClick={() => void record()} disabled={starting || !!busy || updating} className="min-w-52"><Play size={16} fill="currentColor" />{starting ? tr("Запускаю…") : tr("Начать запись")}</Button>}
         
-        {recording ? <><p className="max-w-lg text-xs text-mist-400">{mode === "both" && /Windows/i.test(navigator.userAgent) ? (systemHeard ? tr("Микрофон и системный звук записываются.") : tr("Запись включена, ожидаю системный звук.")) : tr("Микрофон записывается.")} {tr("Перетащите панель за точки. Значок открывает встречу, красная кнопка останавливает запись.")}</p><Button onClick={() => void getCurrentWindow().hide()}>{tr("Скрыть приложение")}</Button></> : <div className="w-full max-w-lg text-left"><Field label={tr("Источник звука")}><select aria-label={tr("Источник звука")} className={cn(inputCls, "w-full")} disabled={starting || !!busy} value={mode} onChange={(e) => setMode(e.target.value as "both" | "mic")}><option value="both">{tr("Мой микрофон + звук компьютера")}</option><option value="mic">{tr("Только микрофон")}</option></select></Field><p className="mt-2 text-xs text-mist-400">{tr("Системный звук записывается с устройства вывода по умолчанию. Сообщите участникам о записи.")}</p></div>}
+        {recording ? <><p className="max-w-lg text-xs text-mist-400">{mode === "both" && /Windows/i.test(navigator.userAgent) ? (systemHeard ? tr("Микрофон и системный звук записываются.") : tr("Запись включена, ожидаю системный звук.")) : mode === "both" && /Mac/i.test(navigator.platform || navigator.userAgent) ? "Запись микрофона и системного звука запущена." : tr("Микрофон записывается.")} {tr("Перетащите панель за точки. Значок открывает встречу, красная кнопка останавливает запись.")}</p><Button onClick={() => void getCurrentWindow().hide()}>{tr("Скрыть приложение")}</Button></> : <div className="w-full max-w-lg text-left"><Field label={tr("Источник звука")}><select aria-label={tr("Источник звука")} className={cn(inputCls, "w-full")} disabled={starting || !!busy} value={mode} onChange={(e) => setMode(e.target.value as "both" | "mic")}><option value="both">{tr("Мой микрофон + звук компьютера")}</option><option value="mic">{tr("Только микрофон")}</option></select></Field><p className="mt-2 text-xs text-mist-400">{/Mac/i.test(navigator.platform || navigator.userAgent) ? "Для звука компьютера macOS может запросить доступ к записи экрана и системного звука. Проверьте обе дорожки после записи. При использовании колонок возможен звук собеседника в дорожке микрофона." : tr("Системный звук записывается с устройства вывода по умолчанию. Сообщите участникам о записи.")}</p></div>}
         
         {!recording && <div className="flex flex-wrap justify-center gap-2"><Button onClick={() => void chooseAudio()} disabled={starting || !!busy}>{tr("Загрузить аудиофайл")}</Button><Button onClick={() => setManualText(true)} disabled={starting || !!busy}>{tr("Вставить текст встречи")}</Button></div>}
       

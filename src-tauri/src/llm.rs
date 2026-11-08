@@ -420,7 +420,7 @@ async fn run_codex(model: String, messages: Vec<ChatMessage>, cancel: Arc<Atomic
             std::fs::write(&path, bytes).map_err(|e| format!("Не удалось подготовить изображение: {e}"))?;
             input.push(serde_json::json!({"type":"localImage","path":path.to_string_lossy()}));
         }
-        let mut cmd = Command::new("codex");
+        let mut cmd = Command::new(crate::codex_connect::find_codex()?);
         cmd.args(["app-server", "--listen", "stdio://"]).current_dir(std::env::temp_dir()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
         #[cfg(windows)] { use std::os::windows::process::CommandExt; cmd.creation_flags(0x08000000); }
         let mut child = cmd.spawn().map_err(|e| format!("Не удалось запустить Codex: {e}"))?;

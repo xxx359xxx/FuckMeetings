@@ -1,8 +1,20 @@
 use std::{io::Cursor, sync::Mutex};
 use base64::Engine;
-use tauri::State;
+use tauri::{Manager, State};
 #[derive(Default)]
 pub struct CaptureState(Mutex<Option<String>>);
+#[tauri::command]
+pub async fn open_selection(app: tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window("selection").is_none() {
+        let config = app.config().app.windows.iter().find(|window| window.label == "selection")
+            .ok_or("Не найдены настройки окна выбора области")?;
+        tauri::WebviewWindowBuilder::from_config(&app, config).map_err(|e| e.to_string())?
+            .build().map_err(|e| e.to_string())?;
+    }
+    let window = app.get_webview_window("selection").ok_or("Окно выбора области недоступно")?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
 #[tauri::command]
 pub async fn capture_screen(state: State<'_, CaptureState>) -> Result<String, String> {
     let data = tauri::async_runtime::spawn_blocking(|| -> Result<String, String> {

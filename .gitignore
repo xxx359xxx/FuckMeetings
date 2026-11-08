@@ -15,6 +15,9 @@ dist-ssr
 # Rust / Tauri build artifacts
 src-tauri/target
 src-tauri/gen/schemas
+src-tauri/resources/whisper/whisper-cli
+src-tauri/resources/whisper/libsystem-audio.dylib
+release-signing/
 
 # Local-only cargo override (keeps build dirs out of cloud-synced folders)
 src-tauri/.cargo/config.toml
