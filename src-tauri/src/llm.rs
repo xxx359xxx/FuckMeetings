@@ -80,6 +80,9 @@ async fn run_llm(
     if provider == "codex" {
         return run_codex(model, messages, cancel, on_event.clone()).await;
     }
+    if provider == "claude-code" {
+        return run_claude(model, messages, cancel, on_event.clone()).await;
+    }
     let client = reqwest::Client::builder()
         .build()
         .map_err(|e| e.to_string())?;
@@ -469,6 +472,96 @@ async fn run_codex(model: String, messages: Vec<ChatMessage>, cancel: Arc<Atomic
     }).await.map_err(|e| e.to_string())?
 }
 
+async fn run_claude(model: String, messages: Vec<ChatMessage>, cancel: Arc<AtomicBool>, on_event: Channel<LlmEvent>) -> Result<(), String> {
+    let input = claude_input(&messages)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::{BufRead, BufReader, Write};
+        use std::process::{Command, Stdio};
+        use std::sync::mpsc;
+        let mut command = Command::new(crate::claude_connect::find_claude()?);
+        command.args(["--safe-mode", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--no-session-persistence", "--tools", "", "--disallowedTools", "mcp__*", "--max-turns", "1"])
+            .current_dir(std::env::temp_dir())
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        if !model.trim().is_empty() { command.arg("--model").arg(model.trim()); }
+        #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+        let mut child = command.spawn().map_err(|e| format!("Не удалось запустить Claude Code: {e}"))?;
+        let result = (|| -> Result<(), String> {
+            let mut stdin = child.stdin.take().ok_or("Не удалось открыть ввод Claude Code")?;
+            writeln!(stdin, "{input}").map_err(|e| format!("Не удалось передать запрос Claude Code: {e}"))?;
+            drop(stdin);
+            let stdout = child.stdout.take().ok_or("Не удалось открыть вывод Claude Code")?;
+            let (tx, rx) = mpsc::channel();
+            std::thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    if tx.send(line).is_err() { break; }
+                }
+            });
+            let mut answer = String::new();
+            loop {
+                if cancel.load(Ordering::Relaxed) { return Err("Генерация отменена".into()); }
+                let line = match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                    Ok(line) => line,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if child.try_wait().map_err(|e| e.to_string())?.is_some() {
+                            return Err("Claude Code завершился без ответа. Проверьте вход и версию CLI.".into());
+                        }
+                        continue;
+                    },
+                    Err(_) => return Err("Соединение с Claude Code закрыто без ответа".into()),
+                };
+                let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+                if let Some(text) = claude_text_delta(&event) {
+                    if !text.is_empty() {
+                        answer.push_str(text);
+                        let _ = on_event.send(LlmEvent::Delta { text: text.to_owned() });
+                    }
+                }
+                if event.get("type").and_then(|v| v.as_str()) == Some("result") {
+                    let failed = event.get("is_error").and_then(|v| v.as_bool()) == Some(true)
+                        || event.get("subtype").and_then(|v| v.as_str()).is_some_and(|s| s != "success");
+                    if failed {
+                        return Err(event.get("result").and_then(|v| v.as_str()).unwrap_or("Claude Code не завершил запрос").to_owned());
+                    }
+                    let final_text = event.get("result").and_then(|v| v.as_str()).unwrap_or("");
+                    if answer.is_empty() && !final_text.is_empty() {
+                        answer.push_str(final_text);
+                        let _ = on_event.send(LlmEvent::Delta { text: final_text.to_owned() });
+                    }
+                    if answer.trim().is_empty() { return Err("Claude Code вернул пустой ответ".into()); }
+                    let _ = on_event.send(LlmEvent::Done { text: answer });
+                    return Ok(());
+                }
+            }
+        })();
+        let _ = child.kill(); let _ = child.wait(); result
+    }).await.map_err(|e| e.to_string())?
+}
+
+fn claude_input(messages: &[ChatMessage]) -> Result<serde_json::Value, String> {
+    use base64::Engine;
+    let mut content = Vec::new();
+    for message in messages {
+        content.push(serde_json::json!({"type":"text","text":format!("[{}]\n{}", message.role, message.content)}));
+        for image in &message.images {
+            let (mime, data) = parse_data_url(image);
+            if !matches!(mime.as_str(), "image/png" | "image/jpeg" | "image/webp" | "image/gif") {
+                return Err(format!("Неподдерживаемый формат изображения: {mime}"));
+            }
+            if data.is_empty() || base64::engine::general_purpose::STANDARD.decode(&data).is_err() {
+                return Err("Неверные данные изображения".into());
+            }
+            content.push(serde_json::json!({"type":"image","source":{"type":"base64","media_type":mime,"data":data}}));
+        }
+    }
+    Ok(serde_json::json!({"type":"user","message":{"role":"user","content":content},"parent_tool_use_id":null}))
+}
+
+fn claude_text_delta(event: &serde_json::Value) -> Option<&str> {
+    if event.get("type")?.as_str()? != "stream_event" { return None; }
+    if event.pointer("/event/delta/type")?.as_str()? != "text_delta" { return None; }
+    event.pointer("/event/delta/text")?.as_str()
+}
+
 #[cfg(test)]
 mod streaming_tests {
     use super::*;
@@ -480,6 +573,40 @@ mod streaming_tests {
         assert_eq!(extract_delta(Wire::OpenAi, &openai).as_deref(), Some("Привет"));
         assert_eq!(extract_delta(Wire::Anthropic, &claude).as_deref(), Some("мир"));
         assert_eq!(extract_delta(Wire::Gemini, &gemini).as_deref(), Some("Готово"));
+    }
+    #[test]
+    fn parses_only_claude_stream_text_deltas() {
+        let text = serde_json::json!({"type":"stream_event","event":{"delta":{"type":"text_delta","text":"Привет"}}});
+        let thinking = serde_json::json!({"type":"stream_event","event":{"delta":{"type":"thinking_delta","thinking":"секрет"}}});
+        let result = serde_json::json!({"type":"result","result":"Привет"});
+        assert_eq!(claude_text_delta(&text), Some("Привет"));
+        assert_eq!(claude_text_delta(&thinking), None);
+        assert_eq!(claude_text_delta(&result), None);
+    }
+    #[test]
+    fn claude_stream_input_keeps_conversation_and_images_in_order() {
+        let messages = vec![
+            ChatMessage { role: "system".into(), content: "Правило".into(), images: vec![] },
+            ChatMessage { role: "user".into(), content: "Что на снимке?".into(), images: vec!["data:image/png;base64,YQ==".into()] },
+            ChatMessage { role: "assistant".into(), content: "Предыдущий ответ".into(), images: vec![] },
+        ];
+        let value = claude_input(&messages).unwrap();
+        assert_eq!(value["type"], "user");
+        assert_eq!(value["message"]["role"], "user");
+        assert!(value["parent_tool_use_id"].is_null());
+        let blocks = value["message"]["content"].as_array().unwrap();
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[0]["text"], "[system]\nПравило");
+        assert_eq!(blocks[1]["text"], "[user]\nЧто на снимке?");
+        assert_eq!(blocks[2]["type"], "image");
+        assert_eq!(blocks[2]["source"], serde_json::json!({"type":"base64","media_type":"image/png","data":"YQ=="}));
+        assert_eq!(blocks[3]["text"], "[assistant]\nПредыдущий ответ");
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&value.to_string()).unwrap(), value);
+    }
+    #[test]
+    fn claude_stream_input_rejects_invalid_image() {
+        let message = ChatMessage { role: "user".into(), content: "Снимок".into(), images: vec!["data:image/png;base64,%%%".into()] };
+        assert!(claude_input(&[message]).is_err());
     }
     #[test]
     fn sends_requests_and_streams_responses_for_each_protocol() {

@@ -6,6 +6,11 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     defaultBaseUrl: "", defaultModel: "", models: [], vision: true, requiresKey: false,
     keyHint: "вход через Codex CLI", color: "#10a37f",
   },
+  "claude-code": {
+    id: "claude-code", name: "Claude Code", short: "Claude Code", wire: "anthropic",
+    defaultBaseUrl: "", defaultModel: "", models: ["sonnet", "opus", "haiku"],
+    vision: true, requiresKey: false, keyHint: "вход через Claude Code CLI", color: "#d97757",
+  },
   openai: {
     id: "openai",
     name: "OpenAI",
@@ -127,6 +132,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
 
 export const PROVIDER_ORDER: ProviderId[] = [
   "codex",
+  "claude-code",
   "openai",
   "anthropic",
   "gemini",

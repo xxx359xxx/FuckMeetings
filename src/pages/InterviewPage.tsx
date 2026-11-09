@@ -451,6 +451,9 @@ export function InterviewPage({
               Используют установленные у вас CLI и ваши подписки. Команды
               настраиваются в «Настройках».
             </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-amber-300">
+              Anthropic предупреждает: маршрутизация запросов через подписку Claude из стороннего приложения может нарушать условия и привести к ограничению аккаунта.
+            </p>
             {agentLines.length > 0 && (
               <pre className="font-mono mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-ink-700 bg-ink-950 p-2 text-[11px] leading-relaxed text-mist-300">
                 {agentLines.join("\n")}

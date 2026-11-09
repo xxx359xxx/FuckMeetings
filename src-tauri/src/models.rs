@@ -75,6 +75,10 @@ pub async fn list_provider_models(
     if provider == "codex" {
         return codex_models().await;
     }
+    if provider == "claude-code" {
+        return Ok(["sonnet", "opus", "haiku"].into_iter()
+            .filter_map(|id| model(id, None, None)).collect());
+    }
     if !matches!(
         provider.as_str(),
         "openai"

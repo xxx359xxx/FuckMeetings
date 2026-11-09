@@ -4,13 +4,26 @@ import AVFoundation
 import CoreMedia
 import CoreGraphics
 
+public typealias AudioCallback = @convention(c) (UnsafePointer<Int16>?, Int32) -> Void
+public typealias ErrorCallback = @convention(c) (UnsafePointer<CChar>?) -> Void
+
 final class AudioOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     let queue = DispatchQueue(label: "com.den4iksoftware.fuckmeetings.system-audio")
-    let path: URL
+    let path: URL?
+    let audioCallback: AudioCallback?
+    let errorCallback: ErrorCallback?
     var file: AVAudioFile?
+    var converter: AVAudioConverter?
+    var converterInput: AVAudioFormat?
     var failure: String?
-    init(path: URL) { self.path = path }
-    func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.failure = error.localizedDescription } }
+    init(path: URL?, audioCallback: AudioCallback? = nil, errorCallback: ErrorCallback? = nil) {
+        self.path = path; self.audioCallback = audioCallback; self.errorCallback = errorCallback
+    }
+    func report(_ message: String) {
+        failure = message
+        message.withCString { errorCallback?($0) }
+    }
+    func stream(_ stream: SCStream, didStopWithError error: Error) { queue.async { self.report(error.localizedDescription) } }
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
         guard outputType == .audio, CMSampleBufferDataIsReady(sampleBuffer), let desc = CMSampleBufferGetFormatDescription(sampleBuffer) else { return }
         let format = AVAudioFormat(cmAudioFormatDescription: desc)
@@ -18,14 +31,37 @@ final class AudioOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked 
         guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)) else { return }
         buffer.frameLength = AVAudioFrameCount(frames)
         let status = CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(frames), into: buffer.mutableAudioBufferList)
-        guard status == noErr else { failure = "Не удалось прочитать аудиоданные: \(status)"; return }
+        guard status == noErr else { report("Не удалось прочитать аудиоданные: \(status)"); return }
+        if let audioCallback {
+            guard let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
+                  let converted = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(ceil(Double(frames) * 16000 / format.sampleRate)) + 32) else {
+                report("Не удалось подготовить преобразование системного звука"); return
+            }
+            if converter == nil || converterInput?.sampleRate != format.sampleRate || converterInput?.channelCount != format.channelCount || converterInput?.commonFormat != format.commonFormat {
+                converter = AVAudioConverter(from: format, to: target)
+                converterInput = format
+            }
+            guard let converter else { report("Не удалось подготовить преобразование системного звука"); return }
+            var supplied = false
+            var conversionError: NSError?
+            _ = converter.convert(to: converted, error: &conversionError) { _, status in
+                if supplied { status.pointee = .noDataNow; return nil }
+                supplied = true; status.pointee = .haveData; return buffer
+            }
+            if let conversionError { report("Не удалось преобразовать системный звук: \(conversionError.localizedDescription)"); return }
+            if converted.frameLength > 0, let samples = converted.int16ChannelData?.pointee {
+                audioCallback(UnsafePointer(samples), Int32(converted.frameLength))
+            }
+            return
+        }
+        guard let path else { return }
         do {
             if file == nil {
                 let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: format.sampleRate, AVNumberOfChannelsKey: Int(format.channelCount), AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false, AVLinearPCMIsNonInterleaved: false]
                 file = try AVAudioFile(forWriting: path, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
             }
             try file?.write(from: buffer)
-        } catch { failure = "Не удалось сохранить системный звук: \(error.localizedDescription)" }
+        } catch { report("Не удалось сохранить системный звук: \(error.localizedDescription)") }
     }
 }
 final class Session: @unchecked Sendable {
@@ -47,16 +83,25 @@ func copyError(_ message: String, _ buffer: UnsafeMutablePointer<CChar>?, _ capa
 @_cdecl("fm_audio_start")
 public func fmAudioStart(_ path: UnsafePointer<CChar>?, _ error: UnsafeMutablePointer<CChar>?, _ capacity: Int32) -> Int32 {
     guard let path else { copyError("Не указан путь записи", error, capacity); return 1 }
+    return startCapture(path: URL(fileURLWithPath: String(cString: path)), audioCallback: nil, errorCallback: nil, error: error, capacity: capacity)
+}
+
+@_cdecl("fm_audio_start_stream")
+public func fmAudioStartStream(_ audioCallback: AudioCallback?, _ errorCallback: ErrorCallback?, _ error: UnsafeMutablePointer<CChar>?, _ capacity: Int32) -> Int32 {
+    guard let audioCallback else { copyError("Не указан обработчик системного звука", error, capacity); return 1 }
+    return startCapture(path: nil, audioCallback: audioCallback, errorCallback: errorCallback, error: error, capacity: capacity)
+}
+
+func startCapture(path: URL?, audioCallback: AudioCallback?, errorCallback: ErrorCallback?, error: UnsafeMutablePointer<CChar>?, capacity: Int32) -> Int32 {
     if !CGPreflightScreenCaptureAccess() && !CGRequestScreenCaptureAccess() {
         copyError("Разрешите запись экрана и системного звука для FuckMeetings в настройках macOS и перезапустите приложение.", error, capacity); return 1
     }
-    let target = URL(fileURLWithPath: String(cString: path))
     let done = DispatchSemaphore(value: 0), result = ResultBox()
     let task = Task {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first else { throw NSError(domain: "SystemAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "Не найден экран для системного захвата"]) }
-            let output = AudioOutput(path: target)
+            let output = AudioOutput(path: path, audioCallback: audioCallback, errorCallback: errorCallback)
             let config = SCStreamConfiguration()
             config.capturesAudio = true; config.excludesCurrentProcessAudio = true
             config.sampleRate = 48000; config.channelCount = 2
