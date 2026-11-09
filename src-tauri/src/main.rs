@@ -33,5 +33,5 @@ fn main() {
     #[cfg(windows)]
     setup_webview2_data_dir();
 
-    interview_kit_lib::run()
+    fuckmeetings_lib::run()
 }

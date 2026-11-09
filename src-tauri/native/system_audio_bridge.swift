@@ -5,7 +5,7 @@ import CoreMedia
 import CoreGraphics
 
 final class AudioOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
-    let queue = DispatchQueue(label: "com.interviewkit.system-audio")
+    let queue = DispatchQueue(label: "com.den4iksoftware.fuckmeetings.system-audio")
     let path: URL
     var file: AVAudioFile?
     var failure: String?

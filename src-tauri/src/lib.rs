@@ -3,6 +3,8 @@ mod codex_connect;
 mod files;
 mod llm;
 mod local_models;
+#[cfg(desktop)]
+mod migration;
 mod macos_audio;
 mod screen_capture;
 mod transcribe;
@@ -64,6 +66,7 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_process::init());
         builder = builder.setup(|app| {
+            migration::migrate(app.handle())?;
             if app.config().plugins.0.contains_key("updater") {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             }

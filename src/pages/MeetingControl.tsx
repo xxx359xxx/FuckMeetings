@@ -29,7 +29,7 @@ export function MeetingControl() {
   }
   return <div className="flex h-full items-center justify-center bg-transparent px-2"><div className="flex items-center gap-2 rounded-full border border-violet-400/70 bg-[#11111d] px-2 py-1.5 text-white shadow-xl">
     
-    <button onClick={() => void openMeeting().catch(console.error)} title={tr("Открыть встречу, не останавливая запись")} aria-label={tr("Открыть встречу, не останавливая запись")}><img src="/interviewkit-logo.png" alt="" className="h-8 w-8 rounded-lg" /></button>
+    <button onClick={() => void openMeeting().catch(console.error)} title={tr("Открыть встречу, не останавливая запись")} aria-label={tr("Открыть встречу, не останавливая запись")}><img src="/fuckmeetings-logo.png" alt="" className="h-8 w-8 rounded-lg" /></button>
     
     <div data-tauri-drag-region title={tr("Зажмите и перетащите панель")} className="flex h-10 cursor-grab items-center gap-2 rounded-lg px-2 active:cursor-grabbing">
       

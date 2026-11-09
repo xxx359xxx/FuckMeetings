@@ -246,7 +246,7 @@ export function OverlayPage() {
         className="flex shrink-0 cursor-grab select-none items-center gap-2 border-b border-ink-700/80 bg-ink-850/95 px-3 py-2 active:cursor-grabbing"
       >
         
-        <img src="/interviewkit-logo.png" alt="" className="h-5 w-5 shrink-0 rounded" />
+        <img src="/fuckmeetings-logo.png" alt="" className="h-5 w-5 shrink-0 rounded" />
         
         <span
           className="min-w-0 flex-1 truncate text-[12px] font-semibold"

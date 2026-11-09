@@ -52,7 +52,7 @@ jobs:
           $installDir = Join-Path $env:RUNNER_TEMP 'FuckMeetings-smoke'
           $setup = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
-          $binary = Get-ChildItem -Path $installDir -Filter 'interview-kit.exe' -Recurse | Select-Object -First 1
+          $binary = Get-ChildItem -Path $installDir -Filter 'fuckmeetings.exe' -Recurse | Select-Object -First 1
           if (-not $binary) { throw 'Installed application executable not found' }
           $process = Start-Process -FilePath $binary.FullName -PassThru
           try {

@@ -409,7 +409,7 @@ async fn run_codex(model: String, messages: Vec<ChatMessage>, cancel: Arc<Atomic
         use std::process::{Command, Stdio};
         use std::sync::mpsc;
         use base64::Engine;
-        let image_dir = tempfile::Builder::new().prefix("interviewkit-images-").tempdir().map_err(|e| format!("Не удалось подготовить изображения: {e}"))?;
+        let image_dir = tempfile::Builder::new().prefix("fuckmeetings-images-").tempdir().map_err(|e| format!("Не удалось подготовить изображения: {e}"))?;
         let prompt = messages.iter().map(|m| format!("[{}]\n{}", m.role, m.content)).collect::<Vec<_>>().join("\n\n");
         let mut input = vec![serde_json::json!({"type":"text","text":prompt,"text_elements":[]})];
         for (index, image) in messages.iter().flat_map(|m| m.images.iter()).enumerate() {
@@ -431,7 +431,7 @@ async fn run_codex(model: String, messages: Vec<ChatMessage>, cancel: Arc<Atomic
         let send = |stdin: &mut std::process::ChildStdin, value: serde_json::Value| -> Result<(), String> {
             writeln!(stdin, "{}", value).map_err(|e| e.to_string())?; stdin.flush().map_err(|e| e.to_string())
         };
-        send(&mut stdin, serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"interview_kit","version":"0.1.0"},"capabilities":{}}}))?;
+        send(&mut stdin, serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"fuckmeetings","version":"0.1.0"},"capabilities":{}}}))?;
         let mut answer = String::new();
         let result = loop {
             if cancel.load(Ordering::Relaxed) { break Err("Генерация отменена".to_string()); }
