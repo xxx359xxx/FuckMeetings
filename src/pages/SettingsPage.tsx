@@ -32,6 +32,7 @@ import { cn, errMsg } from "../lib/utils";
 
 const SETUP: Record<ProviderId, { description: string; link?: string; label?: string }> = {
   codex: { description: "Подключите установленный Codex. Если потребуется вход, подтвердите его в браузере; модель можно оставить пустой." },
+  "claude-code": { description: "Используется установленный оригинальный Claude Code CLI с его собственной авторизацией. Anthropic указывает, что маршрутизация запросов сторонним приложением через подписку Claude может нарушать условия и привести к ограничению аккаунта. Продолжайте только если принимаете этот риск.", link: "https://code.claude.com/docs/en/legal-and-compliance", label: "Условия Anthropic" },
   openai: { description: "Создайте API-ключ в кабинете OpenAI, вставьте его ниже и выберите модель. Доступ к API и его оплата могут отличаться от подписки ChatGPT.", link: "https://platform.openai.com/api-keys", label: "Открыть кабинет OpenAI" },
   anthropic: { description: "Создайте API-ключ Claude в консоли Anthropic, вставьте его ниже и выберите модель. Доступ и оплата API настраиваются в консоли.", link: "https://platform.claude.com/settings/keys", label: "Открыть консоль Claude" },
   gemini: { description: "Создайте ключ Gemini API в Google AI Studio, вставьте его ниже и выберите модель. Доступ и лимиты зависят от проекта.", link: "https://aistudio.google.com/app/apikey", label: "Открыть Google AI Studio" },
@@ -71,6 +72,8 @@ export function SettingsPage() {
   const [connectingCodex, setConnectingCodex] = useState(false);
   const [codexStatus, setCodexStatus] = useState("");
   const [codexUrl, setCodexUrl] = useState("");
+  const [checkingClaude, setCheckingClaude] = useState(false);
+  const [claudeStatus, setClaudeStatus] = useState("");
   const [providerModels, setProviderModels] = useState<ProviderModel[]>([]);
   const [loadingProviderModels, setLoadingProviderModels] = useState(false);
   const [providerModelsMessage, setProviderModelsMessage] = useState("");
@@ -111,6 +114,12 @@ export function SettingsPage() {
       setCodexUrl(""); setCodexStatus("Codex подключён и выбран. Отправьте тестовый запрос, чтобы проверить доступ к модели.");
     } catch (e) { setCodexUrl(""); setCodexStatus(`Не удалось подключить Codex: ${errMsg(e)}`); }
     finally { setConnectingCodex(false); }
+  }
+  async function checkClaude() {
+    setCheckingClaude(true); setClaudeStatus("Проверяю Claude Code CLI и его вход…");
+    try { await invoke("connect_claude"); setClaudeStatus("Claude Code CLI найден и авторизован. Отправьте тестовый запрос для проверки модели."); }
+    catch (e) { setClaudeStatus(`Не удалось подключить Claude Code: ${errMsg(e)}`); }
+    finally { setCheckingClaude(false); }
   }
   const [transcriptionError, setTranscriptionError] = useState("");
   const [transcriptionStatus, setTranscriptionStatus] = useState("");
@@ -285,6 +294,10 @@ export function SettingsPage() {
               {codexStatus && <p role="status">{codexStatus}</p>}
               {codexUrl && <button className="text-accent-400 underline" onClick={() => void openUrl(codexUrl).catch((e) => setCodexStatus(`Не удалось открыть браузер: ${errMsg(e)}`))}>Открыть страницу входа ↗</button>}
             </div>}
+            {provider.id === "claude-code" && <div className="mt-3 space-y-2">
+              <Button variant="primary" disabled={checkingClaude} onClick={() => void checkClaude()}>{checkingClaude ? "Проверяю…" : "Проверить Claude Code"}</Button>
+              {claudeStatus && <p role="status">{claudeStatus}</p>}
+            </div>}
             
             
             
@@ -294,7 +307,7 @@ export function SettingsPage() {
           
           <div className="mt-4 grid gap-4">
             
-            {provider.id !== "codex" && provider.id !== "ollama" && <Field
+            {provider.id !== "codex" && provider.id !== "claude-code" && provider.id !== "ollama" && <Field
               label={tr("API-ключ")}
               hint={provider.requiresKey ? tr("обязателен; хранится в настройках без отдельного шифрования") : tr("если сервер требует")}
             >
@@ -367,7 +380,7 @@ export function SettingsPage() {
 
             
 
-            {provider.id !== "codex" && <Field label={tr("Адрес API")} hint={provider.id === "custom" ? tr("Базовый адрес без /chat/completions, например https://example.com/v1") : tr("Обычно изменять не нужно")}>
+            {provider.id !== "codex" && provider.id !== "claude-code" && <Field label={tr("Адрес API")} hint={provider.id === "custom" ? tr("Базовый адрес без /chat/completions, например https://example.com/v1") : tr("Обычно изменять не нужно")}>
               
               <input
                 value={cfg.baseUrl}
@@ -402,7 +415,7 @@ export function SettingsPage() {
               {tr("Проверить подключение")}
             </Button>
             
-            {provider.id !== "codex" && provider.id !== "ollama" && <span className="text-[11px] text-mist-400">{tr("Проверка отправит короткий запрос и может расходовать лимит API.")}</span>}
+            {provider.id !== "codex" && provider.id !== "claude-code" && provider.id !== "ollama" && <span className="text-[11px] text-mist-400">{tr("Проверка отправит короткий запрос и может расходовать лимит API.")}</span>}
             
             {testResult && (
               <div
@@ -493,6 +506,9 @@ export function SettingsPage() {
             {tr("Для автономного решения задач нужны установленные CLI (Claude Code или Codex). Используйте плейсхолдер")}{" "}
             
             <code className="font-mono text-accent-400">{"{prompt}"}</code> {tr("— он будет заменён на текст вопроса.")}
+          </p>
+          <p className="mb-4 text-[12px] leading-relaxed text-amber-300">
+            Использование Claude Code с подпиской из этого приложения может нарушать условия Anthropic и привести к ограничению аккаунта.
           </p>
           
           <div className="grid gap-4">

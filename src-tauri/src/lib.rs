@@ -1,5 +1,6 @@
 mod agents;
 mod codex_connect;
+mod claude_connect;
 mod files;
 mod llm;
 mod local_models;
@@ -49,6 +50,8 @@ pub fn run() {
             local_models::activate_local_model,
             macos_audio::start_mac_audio,
             macos_audio::stop_mac_audio,
+            macos_audio::start_mac_audio_stream,
+            macos_audio::stop_mac_audio_stream,
             updater_configured,
             screen_capture::capture_screen,
             screen_capture::open_selection,
@@ -59,6 +62,7 @@ pub fn run() {
             models::list_provider_models,
             agents::run_agent,
             codex_connect::connect_codex,
+            claude_connect::connect_claude,
             files::read_file_base64,
             files::write_file_base64,
         ]);

@@ -12,13 +12,13 @@ export function streamChat(opts: {
   messages: ChatMessage[];
   onDelta: (text: string) => void;
 }): StreamHandle {
-  if (opts.provider !== "codex" && !opts.config.model.trim()) {
+  if (opts.provider !== "codex" && opts.provider !== "claude-code" && !opts.config.model.trim()) {
     return { promise: Promise.reject(new Error("Укажите модель в настройках провайдера.")), cancel: () => {} };
   }
   if (opts.provider === "custom" && !opts.config.baseUrl.trim()) {
     return { promise: Promise.reject(new Error("Укажите адрес API своего сервера в настройках.")), cancel: () => {} };
   }
-  if (opts.provider !== "codex" && opts.config.baseUrl.trim()) {
+  if (opts.provider !== "codex" && opts.provider !== "claude-code" && opts.config.baseUrl.trim()) {
     try { const url = new URL(opts.config.baseUrl); if (!["http:", "https:"].includes(url.protocol)) throw new Error(); }
     catch { return { promise: Promise.reject(new Error("Адрес API должен начинаться с http:// или https://")), cancel: () => {} }; }
   }
