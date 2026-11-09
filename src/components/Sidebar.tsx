@@ -1,4 +1,6 @@
 import { tr } from "../lib/i18n";
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   FileText,
   Keyboard,
@@ -57,6 +59,15 @@ export function Sidebar({
   const providerCfg = settings.providers[settings.activeProvider];
   const hotkey = useHotkey();
   const patch = useSettings((s) => s.patch);
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void getVersion().then((value) => {
+      if (active) setVersion(value);
+    }).catch((error) => console.warn("Не удалось получить версию приложения:", error));
+    return () => { active = false; };
+  }, []);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-ink-800 bg-ink-900">
@@ -72,7 +83,7 @@ export function Sidebar({
         <div>
           
           <div className="text-sm font-semibold tracking-tight">
-            FuckMeetings <span className="text-[10px] text-mist-400">v1.0</span>
+            FuckMeetings {version && <span className="text-[10px] text-mist-400">v{version}</span>}
           
           </div>
           

@@ -1259,7 +1259,7 @@ const translations: Record<string, { en: string; es: string }> = {
     "en": "MiB",
     "es": "MiB"
   },
-  "• В текущей версии (v1.0) ключи сохраняются в локальном JSON без шифрования. Не храните чужие ключи и не демонстрируйте экран настроек при трансляции.": {
+  "• Ключи сохраняются в локальном JSON без шифрования. Не храните чужие ключи и не демонстрируйте экран настроек при трансляции.": {
     "en": "• Keys are saved in a local JSON file without encryption. Do not share keys or display settings during screen sharing.",
     "es": "• Las claves se guardan en un archivo JSON local sin cifrar. No compartas claves ni muestres ajustes al compartir pantalla."
   }

@@ -1,7 +1,7 @@
 {
   "name": "fuckmeetings",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.3",
   "license": "MIT",
   "type": "module",
   "scripts": {
