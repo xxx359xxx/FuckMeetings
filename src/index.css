@@ -204,7 +204,7 @@ body {
   animation: fade-up 0.25s ease both;
 }
 
-/* InterviewKit editorial theme. The same components share both palettes. */
+/* FuckMeetings editorial theme. The same components share both palettes. */
 :root[data-theme="light"] {
   --color-ink-950: #f6f3f1;
   --color-ink-900: #fffdfc;

@@ -62,7 +62,7 @@ pub async fn transcribe_local(data: String, executable: String, model_path: Stri
         use std::process::Command;
         let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
         if bytes.is_empty() { return Err("Аудиофайл пуст".into()); }
-        let id = format!("interviewkit-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos());
+        let id = format!("fuckmeetings-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos());
         let directory = std::env::temp_dir().join(id);
         std::fs::create_dir(&directory).map_err(|e| e.to_string())?;
         let result = (|| {

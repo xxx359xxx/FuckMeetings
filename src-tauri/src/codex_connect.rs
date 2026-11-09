@@ -40,7 +40,7 @@ pub async fn connect_codex(on_event: Channel<ConnectEvent>) -> Result<(), String
             let (tx, rx) = mpsc::channel();
             std::thread::spawn(move || { for line in BufReader::new(output).lines().map_while(Result::ok) { if tx.send(line).is_err() { break; } } });
             let send = |input: &mut std::process::ChildStdin, value: serde_json::Value| -> Result<(), String> { writeln!(input, "{value}").and_then(|_| input.flush()).map_err(|e| e.to_string()) };
-            send(&mut input, serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"interview_kit","version":"1.0.0"},"capabilities":{}}}))?;
+            send(&mut input, serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"fuckmeetings","version":"1.0.0"},"capabilities":{}}}))?;
             let deadline = Instant::now() + Duration::from_secs(300);
             let mut login_id: Option<String> = None;
             loop {

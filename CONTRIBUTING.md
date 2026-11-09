@@ -1,6 +1,6 @@
 # Участие в разработке
 
-Спасибо за интерес к InterviewKit! Проект открыт для pull request'ов и issue.
+Спасибо за интерес к FuckMeetings! Проект открыт для pull request'ов и issue.
 
 ## Требования
 

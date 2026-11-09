@@ -62,7 +62,7 @@ async fn download(url: &str, path: &Path, size: u64, hash: &str, stage: &str, pr
     if valid(path, size, hash) { let _ = progress.send(InstallProgress { stage: stage.into(), downloaded:size, total:size }); return Ok(()); }
     let tmp = path.with_extension("partial");
     let result = async {
-        let response = reqwest::Client::new().get(url).header("User-Agent", "InterviewKit").send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+        let response = reqwest::Client::new().get(url).header("User-Agent", "FuckMeetings").send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
         let mut stream = response.bytes_stream(); let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?; let mut h = Sha256::new(); let mut n = 0u64;
         while let Some(chunk) = stream.next().await { let chunk = chunk.map_err(|e| e.to_string())?; n += chunk.len() as u64; if n > size { return Err("Размер файла превышает ожидаемый".into()); } file.write_all(&chunk).map_err(|e| e.to_string())?; h.update(&chunk); let _ = progress.send(InstallProgress { stage: stage.into(), downloaded:n, total:size }); }
         file.sync_all().map_err(|e| e.to_string())?; drop(file);

@@ -65,7 +65,7 @@ export function Sidebar({
         
         <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent-500/15 text-accent-400 ring-1 ring-accent-500/30">
           
-          <img src="/interviewkit-logo.png" alt="" className="h-9 w-9 rounded-lg" />
+          <img src="/fuckmeetings-logo.png" alt="" className="h-9 w-9 rounded-lg" />
         
         </div>
         

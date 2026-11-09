@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/interviewkit-logo.png" width="96" alt="Логотип FuckMeetings">
+<img src="public/fuckmeetings-logo.png" width="96" alt="Логотип FuckMeetings">
 
 # FuckMeetings
 
@@ -88,7 +88,7 @@ pnpm tauri build
 
 ### Если приложение Windows не открывается
 
-Проверьте в диспетчере задач, не запущена ли другая копия `interview-kit.exe`: приложение использует один экземпляр и может передать управление уже работающей копии. Если запуск сборки из OneDrive вызывает ошибку WebView2, перенесите каталог сборки за пределы синхронизируемой папки, например задав `target-dir` в локальном `src-tauri/.cargo/config.toml`.
+Проверьте в диспетчере задач, не запущена ли другая копия `fuckmeetings.exe`: приложение использует один экземпляр и может передать управление уже работающей копии. Если запуск сборки из OneDrive вызывает ошибку WebView2, перенесите каталог сборки за пределы синхронизируемой папки, например задав `target-dir` в локальном `src-tauri/.cargo/config.toml`.
 
 ## Участие в проекте
 

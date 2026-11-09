@@ -1,8 +1,8 @@
 [package]
-name = "interview-kit"
-version = "1.0.0"
+name = "fuckmeetings"
+version = "1.0.1"
 description = "Open-source interview copilot & ATS resume tailor"
-authors = ["InterviewKit contributors"]
+authors = ["Den4ikSoftWare"]
 license = "MIT"
 edition = "2024"
 
@@ -12,7 +12,7 @@ edition = "2024"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "interview_kit_lib"
+name = "fuckmeetings_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
