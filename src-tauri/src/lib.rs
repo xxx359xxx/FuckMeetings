@@ -3,6 +3,7 @@ mod codex_connect;
 mod files;
 mod llm;
 mod local_models;
+mod models;
 #[cfg(desktop)]
 mod migration;
 mod macos_audio;
@@ -55,6 +56,7 @@ pub fn run() {
             screen_capture::clear_pending_capture,
             llm::llm_chat,
             llm::llm_cancel,
+            models::list_provider_models,
             agents::run_agent,
             codex_connect::connect_codex,
             files::read_file_base64,

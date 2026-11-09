@@ -41,6 +41,8 @@ jobs:
       - name: Build macOS audio and Whisper resources
         if: runner.os == 'macOS'
         run: bash scripts/build-macos-resources.sh
+      - name: Test provider model discovery
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib models::tests
       - name: Check and build the installer
         run: pnpm exec tauri build --bundles ${{ matrix.bundle }}
       - name: Install and launch Windows app

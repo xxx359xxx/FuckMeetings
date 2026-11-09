@@ -1,6 +1,6 @@
 [package]
 name = "fuckmeetings"
-version = "1.0.1"
+version = "1.0.3"
 description = "Open-source interview copilot & ATS resume tailor"
 authors = ["Den4ikSoftWare"]
 license = "MIT"

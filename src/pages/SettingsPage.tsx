@@ -1,5 +1,5 @@
 import { tr } from "../lib/i18n";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -49,6 +49,7 @@ function wireLabelFor(wire: ProviderInfo["wire"]): string {
 }
 
 type LocalModel = { id: string; modelPath: string; size: number; complete: boolean };
+type ProviderModel = { id: string; displayName?: string; description?: string };
 const MODEL_LABELS: Record<string, string> = {
   tiny: "Tiny · быстрая", base: "Base · сбалансированная", small: "Small · точнее",
   "tiny.en": "Tiny · английский", "base.en": "Base · английский", "small.en": "Small · английский",
@@ -70,6 +71,33 @@ export function SettingsPage() {
   const [connectingCodex, setConnectingCodex] = useState(false);
   const [codexStatus, setCodexStatus] = useState("");
   const [codexUrl, setCodexUrl] = useState("");
+  const [providerModels, setProviderModels] = useState<ProviderModel[]>([]);
+  const [loadingProviderModels, setLoadingProviderModels] = useState(false);
+  const [providerModelsMessage, setProviderModelsMessage] = useState("");
+  const modelRequest = useRef(0);
+
+  useEffect(() => {
+    modelRequest.current += 1;
+    setProviderModels([]); setProviderModelsMessage(""); setLoadingProviderModels(false);
+    return () => { modelRequest.current += 1; };
+  }, [provider.id, cfg.apiKey, cfg.baseUrl]);
+
+  async function loadProviderModels() {
+    const request = ++modelRequest.current;
+    setLoadingProviderModels(true); setProviderModelsMessage(""); setProviderModels([]);
+    try {
+      const models = await invoke<ProviderModel[]>("list_provider_models", {
+        provider: provider.id, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl || null,
+      });
+      if (request !== modelRequest.current) return;
+      setProviderModels(models);
+      if (!models.length) setProviderModelsMessage(tr("Провайдер не вернул модели. Можно указать название вручную."));
+    } catch (e) {
+      if (request === modelRequest.current) setProviderModelsMessage(`${tr("Не удалось загрузить модели")}: ${errMsg(e)}`);
+    } finally {
+      if (request === modelRequest.current) setLoadingProviderModels(false);
+    }
+  }
   async function connectCodex() {
     setConnectingCodex(true); setCodexStatus("Проверяю Codex и состояние входа…"); setCodexUrl(""); setTestResult(null);
     const channel = new Channel<{ type: "browser"; url: string } | { type: "status"; message: string }>();
@@ -298,6 +326,24 @@ export function SettingsPage() {
             
 
             <Field label={tr("Модель")} hint={tr("можно ввести вручную")}>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Button type="button" onClick={() => void loadProviderModels()} disabled={loadingProviderModels}>
+                  {loadingProviderModels ? <Spinner size={14} /> : <RefreshCw size={14} />}
+                  {tr("Загрузить модели")}
+                </Button>
+                {providerModels.length > 0 && <span role="status">{tr("Модели загружены")}: {providerModels.length}</span>}
+              </div>
+              {providerModels.length > 0 && <select
+                className={cn(inputCls, "mb-2 w-full")}
+                value={providerModels.some((m) => m.id === cfg.model) ? cfg.model : ""}
+                onChange={(e) => { if (e.target.value) { setTestResult(null); patchProvider(provider.id, { model: e.target.value }); } }}
+                aria-label={tr("Выбрать загруженную модель")}
+              >
+                <option value="">{tr("Выберите модель из списка")}</option>
+                {providerModels.map((m) => <option key={m.id} value={m.id}>{m.displayName && m.displayName !== m.id ? `${m.displayName} (${m.id})` : m.id}</option>)}
+              </select>}
+              {providerModels.length > 0 && <p className="mb-2 text-ink-500">{tr("Список не гарантирует доступ к модели; проверьте подключение после выбора.")}</p>}
+              {providerModelsMessage && <p role="status" className="mb-2 break-words text-amber-300">{providerModelsMessage}</p>}
               
               <input
                 list={`settings-models-${provider.id}`}
@@ -311,7 +357,7 @@ export function SettingsPage() {
               
               <datalist id={`settings-models-${provider.id}`}>
                 
-                {provider.models.map((m) => (
+                {[...new Set([...providerModels.map((m) => m.id), ...provider.models])].map((m) => (
                   <option key={m} value={m} />
                 ))}
               
@@ -540,7 +586,7 @@ export function SettingsPage() {
             </li>
             
             <li>
-              {tr("• В текущей версии (v1.0) ключи сохраняются в локальном JSON без шифрования. Не храните чужие ключи и не демонстрируйте экран настроек при трансляции.")}
+              {tr("• Ключи сохраняются в локальном JSON без шифрования. Не храните чужие ключи и не демонстрируйте экран настроек при трансляции.")}
             </li>
             
             <li>
