@@ -1255,6 +1255,13 @@ const translations: Record<string, { en: string; es: string }> = {
     "en": "Tailoring",
     "es": "Adaptación"
   },
+  "Загрузить модели": { "en": "Load models", "es": "Cargar modelos" },
+  "Модели загружены": { "en": "Models loaded", "es": "Modelos cargados" },
+  "Выбрать загруженную модель": { "en": "Select a loaded model", "es": "Seleccionar un modelo cargado" },
+  "Выберите модель из списка": { "en": "Select a model from the list", "es": "Selecciona un modelo de la lista" },
+  "Не удалось загрузить модели": { "en": "Could not load models", "es": "No se pudieron cargar los modelos" },
+  "Список не гарантирует доступ к модели; проверьте подключение после выбора.": { "en": "The list does not guarantee model access; test the connection after selecting one.", "es": "La lista no garantiza el acceso al modelo; comprueba la conexión tras seleccionarlo." },
+  "Провайдер не вернул модели. Можно указать название вручную.": { "en": "The provider returned no models. You can enter a model manually.", "es": "El proveedor no devolvió modelos. Puedes introducir uno manualmente." },
   "МиБ": {
     "en": "MiB",
     "es": "MiB"
