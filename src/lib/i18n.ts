@@ -1,6 +1,17 @@
 import { useSettings } from "./settings";
 
 const translations: Record<string, { en: string; es: string }> = {
+  "Дополнить опыт под вакансию": { en: "Expand experience for the job", es: "Ampliar experiencia para la oferta" },
+  "Модель предложит подходящие обязанности в существующих местах работы. Неподтверждённые дополнения будут помечены [проверить]. Оценка 80+ не гарантируется.": { en: "The model will suggest relevant duties for existing jobs. Unconfirmed additions will be marked [проверить]. A score of 80+ is not guaranteed.", es: "El modelo sugerirá funciones relevantes en empleos existentes. Las adiciones no confirmadas se marcarán [проверить]. No se garantiza una puntuación de 80 o más." },
+  "Неуказанный опыт": { en: "Additional experience", es: "Experiencia adicional" },
+  "необязательно": { en: "optional", es: "opcional" },
+  "Расскажите, чем ещё занимались и в какой компании — модель учтёт это при адаптации": { en: "Describe other work you did and at which company — the model will use it when tailoring", es: "Describe otras tareas que realizaste y en qué empresa; el modelo las tendrá en cuenta" },
+  "Предложить дополнительные обязанности для проверки": { en: "Suggest additional responsibilities for review", es: "Sugerir responsabilidades adicionales para revisar" },
+  "Дополнения могут быть вымышленными и будут помечены [проверить]. Проверьте их перед отправкой.": { en: "Suggestions may be fictional and will be marked [проверить]. Review them before sending.", es: "Las sugerencias pueden ser ficticias y se marcarán [проверить]. Revísalas antes de enviarlas." },
+  "Пишу письмо…": { en: "Writing letter…", es: "Redactando carta…" },
+  "Создать сопроводительное письмо": { en: "Create cover letter", es: "Crear carta de presentación" },
+  "Модель пишет сопроводительное письмо…": { en: "The model is writing a cover letter…", es: "El modelo está redactando la carta…" },
+  "Сопроводительное письмо": { en: "Cover letter", es: "Carta de presentación" },
   "Сквозные клики": { en: "Click-through", es: "Clics a través" },
   "Вернуть значок на панель задач": { en: "Show taskbar icon", es: "Mostrar icono en la barra" },
   "Скрыть значок на панели задач": { en: "Hide taskbar icon", es: "Ocultar icono de la barra" },

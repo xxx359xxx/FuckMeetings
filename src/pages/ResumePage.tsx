@@ -90,11 +90,14 @@ export function ResumePage({
   const [resumeLanguage, setResumeLanguage] = useState("original");
   const [resumeGoal, setResumeGoal] = useState("vacancy");
   const [resumeStyle, setResumeStyle] = useState("concise");
+  const [inventExperience, setInventExperience] = useState(false);
+  const [additionalExperience, setAdditionalExperience] = useState("");
+  const [coverLetter, setCoverLetter] = useState("");
   const [analysis, setAnalysis] = useState<AtsAnalysis | null>(null);
   const [analysisRaw, setAnalysisRaw] = useState<string | null>(null);
   const [tailored, setTailored] = useState<TailoredResume | null>(null);
   const [tailorRaw, setTailorRaw] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"analyze" | "tailor" | null>(null);
+  const [busy, setBusy] = useState<"analyze" | "tailor" | "letter" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
 
@@ -180,16 +183,43 @@ export function ResumePage({
         provider: settings.activeProvider,
         config: cfg,
         messages: [
-          { role: "system", content: TAILOR_SYSTEM },
+          { role: "system", content: inventExperience ? "Верни полный текст резюме в Markdown, сохрани контактные данные и исходные сведения." : TAILOR_SYSTEM },
           {
             role: "user",
-            content: `${(resumeGoal === "improve" ? TAILOR_PROMPT.replace("На основе исходного резюме и текста вакансии перепиши резюме так, чтобы оно максимально проходило ATS-фильтры этой вакансии.", "На основе исходного резюме улучши его ясность и структуру без привязки к вакансии.") : TAILOR_PROMPT).replace("Язык — тот же, что в исходном резюме (обычно русский или английский).", "Язык результата: " + ({ original: "как в исходном резюме", ru: "русский", en: "английский", es: "испанский" }[resumeLanguage] || "как в исходном резюме") + ".")}\n\nЦель: ${resumeGoal === "vacancy" ? "адаптация под вакансию" : "улучшение исходного резюме без привязки к вакансии"}. Стиль: ${resumeStyle === "concise" ? "краткий" : "подробный"}. Строго не выдумывай опыт, навыки, цифры и другие факты.\n\n=== РЕЗЮМЕ ===\n${resumeText}\n\n=== ВАКАНСИЯ ===\n${vacancy}`,
+            content: `${(resumeGoal === "improve" ? TAILOR_PROMPT.replace("На основе исходного резюме и текста вакансии перепиши резюме так, чтобы оно максимально проходило ATS-фильтры этой вакансии.", "На основе исходного резюме улучши его ясность и структуру без привязки к вакансии.") : TAILOR_PROMPT).replace(inventExperience ? "- НЕ выдумывай факты, компании, даты, проекты, навыки, которых не было в исходном резюме." : "", inventExperience ? "- Можно предложить дополнительные правдоподобные обязанности в существующих местах работы; помечай каждое такое дополнение как [проверить]. Не выдумывай компании, даты и образование." : "").replace(inventExperience ? "Не добавляй навыки, которых не было, но можешь честно сгруппировать смежные" : "", inventExperience ? "Не добавляй неподтверждённые навыки, но можешь сгруппировать смежные" : "").replace(inventExperience ? "Не добавляй вымышленных фактов." : "", "").replace("Язык — тот же, что в исходном резюме (обычно русский или английский).", "Язык результата: " + ({ original: "как в исходном резюме", ru: "русский", en: "английский", es: "испанский" }[resumeLanguage] || "как в исходном резюме") + ".")}\n\nЦель: ${resumeGoal === "vacancy" ? "адаптация под вакансию" : "улучшение исходного резюме без привязки к вакансии"}. Стиль: ${resumeStyle === "concise" ? "краткий" : "подробный"}. ${inventExperience ? "Стремись повысить соответствие вакансии и ориентируйся на оценку 80+, но не обещай конкретный балл. Используй релевантные ключевые слова и добавь в существующие места работы подходящие обязанности на основе контекста резюме, вакансии и дополнительного опыта. Дополнения, которые явно не подтверждены исходными данными, помечай [проверить]; не придумывай цифры и результаты." : "Строго не выдумывай опыт, навыки, цифры и другие факты."}\n\n=== РЕЗЮМЕ ===\n${resumeText}\n\n=== ДОПОЛНИТЕЛЬНЫЙ ОПЫТ КАНДИДАТА ===\n${additionalExperience || "Не указан"}\n\n=== ВАКАНСИЯ ===\n${vacancy}`,
           },
         ],
       });
       const parsed = parseTailored(text);
       if (parsed) { setTailored(parsed); setTailorRaw(null); }
       else setTailorRaw(text);
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function generateCoverLetter() {
+    if (!resumeText.trim()) {
+      setError("Сначала загрузите или вставьте резюме.");
+      return;
+    }
+    setBusy("letter");
+    setError(null);
+    setCoverLetter("");
+    try {
+      let partial = "";
+      const text = await completeChat({
+        provider: settings.activeProvider,
+        config: cfg,
+        onDelta: (chunk) => { partial += chunk; setCoverLetter(partial); },
+        messages: [
+          { role: "system", content: "Напиши готовое сопроводительное письмо в Markdown. Опирайся только на подтверждённые сильные стороны исходного резюме; не выдумывай факты. Верни только текст письма." },
+          { role: "user", content: `Язык: ${{ original: "как в исходном резюме", ru: "русский", en: "английский", es: "испанский" }[resumeLanguage] || "как в исходном резюме"}. ${vacancy.trim() ? "Адаптируй письмо к вакансии." : "Напиши универсальное письмо."}\n\n=== РЕЗЮМЕ ===\n${resumeText}\n\n=== ВАКАНСИЯ ===\n${vacancy}` },
+        ],
+      });
+      setCoverLetter(text);
     } catch (e) {
       setError(errMsg(e));
     } finally {
@@ -258,7 +288,7 @@ export function ResumePage({
   }
 
   const hasResult =
-    analysis || analysisRaw || tailored || tailorRaw || busy;
+    analysis || analysisRaw || tailored || tailorRaw || coverLetter || busy;
 
   return (
     <div className="flex h-full flex-col">
@@ -418,8 +448,9 @@ export function ResumePage({
           <div className="space-y-2 rounded-xl border border-ink-700 p-3">
             <Field label={tr("Цель резюме")}><select className={cn(inputCls, "w-full")} value={resumeGoal} onChange={(e) => setResumeGoal(e.target.value)}><option value="vacancy">{tr("Под вакансию")}</option><option value="improve">{tr("Улучшить резюме")}</option></select></Field>
             <Field label={tr("Язык резюме")}><select className={cn(inputCls, "w-full")} value={resumeLanguage} onChange={(e) => setResumeLanguage(e.target.value)}><option value="original">{tr("Как в исходном резюме")}</option><option value="ru">Русский</option><option value="en">English</option><option value="es">Español</option></select></Field>
-            <details><summary className="cursor-pointer text-xs text-mist-300">{tr("Дополнительные настройки")}</summary><Field label={tr("Подробность")}><select className={cn(inputCls, "w-full")} value={resumeStyle} onChange={(e) => setResumeStyle(e.target.value)}><option value="concise">{tr("Кратко")}</option><option value="detailed">{tr("Подробно")}</option></select></Field><p className="mt-2 text-xs text-mist-400">{tr("Не добавлять вымышленные факты. Проверьте результат перед отправкой.")}</p></details>
+            <details><summary className="cursor-pointer text-xs text-mist-300">{tr("Дополнительные настройки")}</summary><Field label={tr("Подробность")}><select className={cn(inputCls, "w-full")} value={resumeStyle} onChange={(e) => setResumeStyle(e.target.value)}><option value="concise">{tr("Кратко")}</option><option value="detailed">{tr("Подробно")}</option></select></Field><label className="mt-3 flex items-start gap-2 text-xs text-mist-300"><input type="checkbox" checked={inventExperience} onChange={(e) => setInventExperience(e.target.checked)} /><span>{tr("Дополнить опыт под вакансию")}</span></label>{inventExperience && <p className="mt-2 text-xs text-mist-400">{tr("Модель предложит подходящие обязанности в существующих местах работы. Неподтверждённые дополнения будут помечены [проверить]. Оценка 80+ не гарантируется.")}</p>}</details>
           </div>
+          <Field label={tr("Неуказанный опыт")} hint={tr("необязательно")}><textarea value={additionalExperience} onChange={(e) => setAdditionalExperience(e.target.value)} placeholder={tr("Расскажите, чем ещё занимались и в какой компании — модель учтёт это при адаптации") } className={cn(inputCls, "h-24 w-full resize-none")} /></Field>
           {error && <ErrorBanner text={error} onClose={() => setError(null)} />}
 
           
@@ -450,6 +481,7 @@ export function ResumePage({
             
             </Button>
           
+            <Button variant="secondary" onClick={() => void generateCoverLetter()} disabled={busy !== null}><FileText size={15} />{busy === "letter" ? tr("Пишу письмо…") : tr("Создать сопроводительное письмо")}</Button>
           </div>
         
         </div>
@@ -465,7 +497,7 @@ export function ResumePage({
               
               {busy === "analyze"
                 ? tr("Модель оценивает резюме под ATS-фильтры вакансии…")
-                : tr("Модель переписывает резюме под вакансию…")}
+                : busy === "letter" ? tr("Модель пишет сопроводительное письмо…") : tr("Модель переписывает резюме под вакансию…")}
             
             </div>
           )}
@@ -672,6 +704,13 @@ export function ResumePage({
           )}
 
           
+
+          {coverLetter && (
+            <Card className="mb-4">
+              <div className="flex items-center justify-between gap-3"><div className="text-[13px] font-semibold">{tr("Сопроводительное письмо")}</div><CopyButton text={coverLetter} /></div>
+              <div className="mt-3 rounded-lg border border-ink-700 bg-ink-950/60 p-4"><Markdown>{coverLetter}</Markdown></div>
+            </Card>
+          )}
 
           {tailored && (
             <Card>
