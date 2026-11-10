@@ -75,11 +75,17 @@ export function InterviewPage({
 
   const streamRef = useRef<{ cancel: () => void } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldFollowResponse = useRef(true);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, busy]);
+    if (el && shouldFollowResponse.current) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  function onConversationScroll() {
+    const el = scrollRef.current;
+    if (el) shouldFollowResponse.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }
 
   async function addFiles(files: File[]) {
     try {
@@ -154,6 +160,7 @@ export function InterviewPage({
       images: imgs,
     };
     const assistant: ChatMessage = { role: "assistant", content: "", images: [] };
+    shouldFollowResponse.current = true;
     setMessages((prev) => [...prev, userMsg, assistant]);
     setQuestion("");
     setImages([]);
@@ -462,7 +469,7 @@ export function InterviewPage({
           </div>
         </div>
 
-        <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-5">
+        <div ref={scrollRef} onScroll={onConversationScroll} className="min-w-0 flex-1 overflow-y-auto p-5">
           {messages.length === 0 ? (
             <div className="grid h-full place-items-center">
               <div className="max-w-md text-center">

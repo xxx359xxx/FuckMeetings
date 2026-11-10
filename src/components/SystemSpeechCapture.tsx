@@ -70,7 +70,9 @@ export function SystemSpeechCapture({ onText, flushRef }: { onText: (text: strin
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength); let sum = 0;
       for (let i = 0; i + 1 < data.length; i += 2) { const value = view.getInt16(i, true) / 32768; sum += value * value; }
       if (Math.sqrt(sum / Math.max(1, data.length / 2)) > 0.012) { heard.current = true; quiet.current = 0; } else quiet.current += data.length / 2;
-      if ((heard.current && quiet.current >= 19200 && samples.current >= 24000) || samples.current >= 160000) submit();
+      // Send shorter speech segments so recognized text reaches the overlay sooner.
+      // Keep the silence gate to avoid cutting phrases in the middle of speech.
+      if ((heard.current && quiet.current >= 9600 && samples.current >= 16000) || samples.current >= 64000) submit();
     };
     running.current = true;
     setTransitioning(true);

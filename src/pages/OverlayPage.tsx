@@ -53,6 +53,7 @@ export function OverlayPage() {
 
   const handleRef = useRef<StreamHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldFollowResponse = useRef(true);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -78,8 +79,13 @@ export function OverlayPage() {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && shouldFollowResponse.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  const onConversationScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) shouldFollowResponse.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }, []);
 
   const addImages = useCallback((urls: string[]) => {
     if (urls.length === 0) return;
@@ -158,6 +164,7 @@ export function OverlayPage() {
     const history = [...messages, userMsg];
     const assistantId = uid();
 
+    shouldFollowResponse.current = true;
     setMessages([...history, { id: assistantId, role: "assistant", content: "" }]);
     transcriptRef.current = "";
     setTranscript("");
@@ -289,6 +296,7 @@ export function OverlayPage() {
       
       <div
         ref={scrollRef}
+        onScroll={onConversationScroll}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
       >
         

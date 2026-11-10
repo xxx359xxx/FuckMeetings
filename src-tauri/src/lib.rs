@@ -12,6 +12,7 @@ mod screen_capture;
 mod transcribe;
 
 use llm::AppState;
+use tauri::Manager;
 
 #[tauri::command]
 fn updater_configured(app: tauri::AppHandle) -> bool {
@@ -24,7 +25,6 @@ pub fn run() {
     let mut builder = tauri::Builder::default();
     #[cfg(desktop)]
     {
-        use tauri::Manager;
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -88,6 +88,13 @@ pub fn run() {
     }
 
     builder
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                // Closing the primary window should also stop background CLI children.
+                crate::agents::terminate_running_agents();
+                window.app_handle().exit(0);
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
