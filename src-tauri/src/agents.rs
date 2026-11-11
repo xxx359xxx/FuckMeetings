@@ -1,8 +1,45 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 
 use serde::Serialize;
 use tauri::ipc::Channel;
+
+static RUNNING_AGENTS: OnceLock<Mutex<Vec<u32>>> = OnceLock::new();
+
+fn running_agents() -> &'static Mutex<Vec<u32>> {
+    RUNNING_AGENTS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+struct AgentProcessGuard(u32);
+
+impl Drop for AgentProcessGuard {
+    fn drop(&mut self) {
+        if let Ok(mut agents) = running_agents().lock() {
+            agents.retain(|pid| *pid != self.0);
+        }
+    }
+}
+
+pub fn terminate_running_agents() {
+    let Ok(mut registry) = running_agents().lock() else { return };
+    let pids = std::mem::take(&mut *registry);
+    drop(registry);
+    for pid in pids {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(0x08000000)
+                .status();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = Command::new("kill").args(["-TERM", &pid.to_string()]).status();
+        }
+    }
+}
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -51,6 +88,11 @@ pub async fn run_agent(
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
 
         let mut child = match cmd.spawn() {
             Ok(c) => c,
@@ -63,6 +105,11 @@ pub async fn run_agent(
                 return;
             }
         };
+        let pid = child.id();
+        if let Ok(mut agents) = running_agents().lock() {
+            agents.push(pid);
+        }
+        let _guard = AgentProcessGuard(pid);
 
         if let Some(mut stdin) = child.stdin.take() {
             if let Err(e) = stdin.write_all(prompt.as_bytes()) {
@@ -90,6 +137,29 @@ pub async fn run_agent(
                 }
             }
         });
+
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+                Err(_) => break,
+            }
+            // Stop both the shell and its descendants if the primary window closed.
+            #[cfg(windows)]
+            if !running_agents().lock().map(|agents| agents.contains(&pid)).unwrap_or(false) {
+                use std::os::windows::process::CommandExt;
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .creation_flags(0x08000000)
+                    .status();
+                break;
+            }
+            #[cfg(not(windows))]
+            if !running_agents().lock().map(|agents| agents.contains(&pid)).unwrap_or(false) {
+                let _ = child.kill();
+                break;
+            }
+        }
 
         let _ = h1.join();
         let _ = h2.join();

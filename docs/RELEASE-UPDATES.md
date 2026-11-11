@@ -51,6 +51,13 @@ bash scripts/build-macos-resources.sh
 `tauri build`; проверить, что созданы подписанные файлы `.sig`. Закрытый ключ и
 пароль не должны попадать в приложение или `latest.json`.
 
+В GitHub Actions используйте одноимённые secrets репозитория. Workflow
+`.github/workflows/release.yml` запускается при отправке тега `v*`, собирает
+Windows x64 и macOS Apple Silicon и создаёт draft-релиз с updater JSON. Перед
+сохранением `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` удалите завершающие пробелы и
+переводы строк из локального password-файла. Проверьте все артефакты черновика и
+`latest.json` до публикации релиза.
+
 Подготовить GitHub Release как draft; к одной версии приложить Windows NSIS
 `*-setup.exe` и его `.sig`, Mac `.dmg` для первой установки и подписанный
 `*.app.tar.gz` с `.sig` для обновлений. `latest.json` должен содержать версии,
