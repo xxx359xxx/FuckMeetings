@@ -47,14 +47,7 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ github.ref_name }}
         run: |
-          python3 - <<'PY'
-          import json, os, pathlib, re
-          version = os.environ['EXPECTED_VERSION'].removeprefix('v')
-          assert re.fullmatch(r'\d+\.\d+\.\d+', version), version
-          assert json.loads(pathlib.Path('package.json').read_text())['version'] == version
-          assert json.loads(pathlib.Path('src-tauri/tauri.conf.json').read_text())['version'] == version
-          assert re.search(r'^version = "' + re.escape(version) + r'"$', pathlib.Path('src-tauri/Cargo.toml').read_text(), re.M)
-          PY
+          node -e 'const fs = require("fs"); const v = process.env.EXPECTED_VERSION.replace(/^v/, ""); if (!/^\d+\.\d+\.\d+$/.test(v) || JSON.parse(fs.readFileSync("package.json")).version !== v || JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json")).version !== v || !fs.readFileSync("src-tauri/Cargo.toml", "utf8").includes(`version = "${v}"`)) process.exit(1);'
           if [ "$RUNNER_OS" = macOS ]; then test "$(uname -m)" = arm64; fi
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
