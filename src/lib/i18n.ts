@@ -14,6 +14,8 @@ const translations: Record<string, { en: string; es: string }> = {
   "Модель пишет сопроводительное письмо…": { en: "The model is writing a cover letter…", es: "El modelo está redactando la carta…" },
   "Сопроводительное письмо": { en: "Cover letter", es: "Carta de presentación" },
   "Сквозные клики": { en: "Click-through", es: "Clics a través" },
+  "Вернуть значок в Dock": { en: "Show Dock icon", es: "Mostrar icono en Dock" },
+  "Скрыть значок из Dock": { en: "Hide Dock icon", es: "Ocultar icono del Dock" },
   "Вернуть значок на панель задач": { en: "Show taskbar icon", es: "Mostrar icono en la barra" },
   "Скрыть значок на панели задач": { en: "Hide taskbar icon", es: "Ocultar icono de la barra" },
   "Защита от захвата включена": { en: "Capture protection enabled", es: "Protección de captura activada" },

@@ -8,6 +8,7 @@ import { initSettings, useSettings } from "./lib/settings";
 import { MeetingsPage } from "./pages/MeetingsPage";
 import { InterviewContextPage } from "./pages/InterviewContextPage";
 import { OverlayPage } from "./pages/OverlayPage";
+import { PracticePage } from "./pages/PracticePage";
 import { ResumePage } from "./pages/ResumePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ShortcutsPage } from "./pages/ShortcutsPage";
@@ -81,6 +82,7 @@ export default function App() {
         {tab === "interview" && (
           <InterviewContextPage />
         )}
+        {tab === "practice" && <PracticePage />}
         {tab === "resume" && (
           <ResumePage onOpenSettings={() => setTab("settings")} />
         )}

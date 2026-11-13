@@ -19,6 +19,14 @@ fn updater_configured(app: tauri::AppHandle) -> bool {
     app.config().plugins.0.contains_key("updater")
 }
 
+#[tauri::command]
+fn set_dock_icon_visible(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    { return app.set_dock_visibility(visible).map_err(|e| e.to_string()); }
+    #[cfg(not(target_os = "macos"))]
+    { let _ = (app, visible); Err("Dock доступен только в macOS".into()) }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
@@ -53,6 +61,7 @@ pub fn run() {
             macos_audio::start_mac_audio_stream,
             macos_audio::stop_mac_audio_stream,
             updater_configured,
+            set_dock_icon_visible,
             screen_capture::capture_screen,
             screen_capture::open_selection,
             screen_capture::get_pending_capture,

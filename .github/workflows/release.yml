@@ -86,6 +86,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
@@ -123,9 +124,15 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --draft --prerelease=false
+          NOTES_FILE="docs/RELEASE-${RELEASE_TAG#v}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            NOTES_ARGS=(--notes-file "$NOTES_FILE")
           else
-            gh release create "$RELEASE_TAG" --draft --title "FuckMeetings $RELEASE_TAG" --notes 'Signed macOS and Windows installers with auto-update artifacts.'
+            NOTES_ARGS=(--notes 'Signed macOS and Windows installers with auto-update artifacts.')
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft --prerelease=false "${NOTES_ARGS[@]}"
+          else
+            gh release create "$RELEASE_TAG" --draft --title "FuckMeetings $RELEASE_TAG" "${NOTES_ARGS[@]}"
           fi
           gh release upload "$RELEASE_TAG" release-artifacts/* --clobber

@@ -2,6 +2,7 @@ import { tr } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { X, Eye, EyeOff, MousePointer2, PanelBottom, PanelBottomClose, Contrast } from "lucide-react";
 import { hotkeyLabel } from "../lib/overlay";
@@ -17,6 +18,8 @@ import { cn, errMsg, uid } from "../lib/utils";
 import type { ChatMessage } from "../lib/types";
 
 type Msg = ChatMessage & { id: string };
+
+const onMac = /Mac/i.test(navigator.platform || navigator.userAgent);
 
 const MIME: Record<string, string> = {
   png: "image/png",
@@ -43,6 +46,7 @@ export function OverlayPage() {
   const [attached, setAttached] = useState<string[]>([]);
   const [clickThrough, setClickThrough] = useState(false);
   const [hiddenIcon, setHiddenIcon] = useState(false);
+  const [iconToggleBusy, setIconToggleBusy] = useState(false);
   const [flushing, setFlushing] = useState(false);
   const flushRef = useRef<(() => Promise<void>) | null>(null);
   const sendRef = useRef<(image?: string) => Promise<void>>(async () => {});
@@ -262,7 +266,7 @@ export function OverlayPage() {
         </span>
         
         <button type="button" aria-pressed={clickThrough} aria-label={tr("Сквозные клики")} title={`${tr("Сквозные клики")} · ${hotkeyLabel(settings.shortcuts.clickThrough)}`} onClick={() => void emitTo("main", "overlay-toggle-click-through").catch((err) => setError(errMsg(err)))} className={cn("shrink-0 rounded p-1 hover:bg-ink-700", clickThrough ? "text-accent-400" : "text-mist-400")}><MousePointer2 size={16} /></button>
-        <button type="button" aria-pressed={hiddenIcon} aria-label={tr(hiddenIcon ? "Вернуть значок на панель задач" : "Скрыть значок на панели задач")} title={tr(hiddenIcon ? "Вернуть значок на панель задач" : "Скрыть значок на панели задач")} onClick={async () => { try { const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow'); const main = await WebviewWindow.getByLabel('main'); if (main) { await main.setSkipTaskbar(!hiddenIcon); setHiddenIcon(!hiddenIcon); } } catch (err) { setError(errMsg(err)); } }} className={cn("shrink-0 rounded p-1 hover:bg-ink-700", hiddenIcon ? "text-accent-400" : "text-mist-400")}>{hiddenIcon ? <PanelBottomClose size={16} /> : <PanelBottom size={16} />}</button>
+        <button type="button" disabled={iconToggleBusy} aria-pressed={hiddenIcon} aria-label={tr(hiddenIcon ? (onMac ? "Вернуть значок в Dock" : "Вернуть значок на панель задач") : (onMac ? "Скрыть значок из Dock" : "Скрыть значок на панели задач"))} title={tr(hiddenIcon ? (onMac ? "Вернуть значок в Dock" : "Вернуть значок на панель задач") : (onMac ? "Скрыть значок из Dock" : "Скрыть значок на панели задач"))} onClick={async () => { if (iconToggleBusy) return; setIconToggleBusy(true); try { if (onMac) { await invoke('set_dock_icon_visible', { visible: hiddenIcon }); setHiddenIcon(!hiddenIcon); } else { const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow'); const main = await WebviewWindow.getByLabel('main'); if (main) { await main.setSkipTaskbar(!hiddenIcon); setHiddenIcon(!hiddenIcon); } } } catch (err) { setError(errMsg(err)); } finally { window.setTimeout(() => setIconToggleBusy(false), onMac ? 1100 : 0); } }} className={cn("shrink-0 rounded p-1 hover:bg-ink-700", hiddenIcon ? "text-accent-400" : "text-mist-400")}>{hiddenIcon ? <PanelBottomClose size={16} /> : <PanelBottom size={16} />}</button>
         <span className="max-w-[65px] shrink-0 truncate text-[11px] text-ink-500">{provider.short}</span>
         <button type="button" aria-pressed={protectedWindow} aria-label={tr(protectedWindow ? "Защита от захвата включена" : "Видно при захвате")} title={tr(protectedWindow ? "Защита от захвата включена" : "Видно при захвате")} onClick={async () => { try { await getCurrentWindow().setContentProtected(!protectedWindow); setProtectedWindow(!protectedWindow); localStorage.setItem("overlay-protected", String(!protectedWindow)); setError(null); } catch (err) { setError(`Не удалось изменить защиту окна: ${errMsg(err)}`); } }} className={cn("shrink-0 rounded p-1 hover:bg-ink-700", protectedWindow ? "text-accent-400" : "text-mist-400")}>{protectedWindow ? <EyeOff size={16} /> : <Eye size={16} />}</button>
         <label className="flex items-center gap-1 text-[10px] text-mist-400" title={tr("Прозрачность окна")}><Contrast size={15} /><input aria-label={tr("Непрозрачность окна")} type="range" min="40" max="100" value={opacity} onChange={(e) => { setOpacity(Number(e.target.value)); localStorage.setItem("overlay-opacity", e.target.value); }} className="w-12" /></label>

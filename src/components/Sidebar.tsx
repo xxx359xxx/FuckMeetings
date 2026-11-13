@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   FileText,
+  BookOpen,
   Keyboard,
   MessageSquare,
   Mic,
@@ -16,7 +17,7 @@ import type { Settings } from "../lib/types";
 import { cn } from "../lib/utils";
 import { useSettings } from "../lib/settings";
 
-export type Tab = "interview" | "resume" | "meetings" | "settings" | "shortcuts";
+export type Tab = "interview" | "practice" | "resume" | "meetings" | "settings" | "shortcuts";
 
 const NAV: {
   id: Tab;
@@ -30,6 +31,7 @@ const NAV: {
     hint: "Резюме и инструкции",
     icon: MessageSquare,
   },
+  { id: "practice", label: "Тренировка", hint: "Вопросы и ответы", icon: BookOpen },
   {
     id: "resume",
     label: "Резюме / ATS",
