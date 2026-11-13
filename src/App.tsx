@@ -82,7 +82,7 @@ export default function App() {
         {tab === "interview" && (
           <InterviewContextPage />
         )}
-        {tab === "practice" && <PracticePage />}
+        <div className={tab === "practice" ? "h-full" : "hidden"}><PracticePage visible={tab === "practice"} /></div>
         {tab === "resume" && (
           <ResumePage onOpenSettings={() => setTab("settings")} />
         )}

@@ -23,14 +23,15 @@ export function SpeechCapture({ onText, compact = false, flushRef }: { onText: (
   const mounted = useRef(true);
   const backlog = useRef(0);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const stopEvent = useRef<Promise<void>>(Promise.resolve());
+  const captureError = useRef("");
   const onTextRef = useRef(onText); onTextRef.current = onText;
 
   if (flushRef) flushRef.current = async () => {
-    const rec = recorder.current;
-    if (rec?.state === "recording") {
-      await new Promise<void>((resolve) => { rec.addEventListener("stop", () => resolve(), { once: true }); rec.stop(); });
-    }
+    stop();
+    await stopEvent.current;
     await queue.current;
+    if (captureError.current) throw new Error(captureError.current);
   };
 
   function stop() {
@@ -59,7 +60,7 @@ export function SpeechCapture({ onText, compact = false, flushRef }: { onText: (
   }, [compact, active]);
 
   async function start() {
-    setError("");
+    setError(""); captureError.current = "";
     if (settings.transcriptionMode === "deepgram" && !settings.deepgramKey.trim()) { setError("Укажите ключ Deepgram в настройках транскрибатора."); return; }
     if (settings.transcriptionMode === "api" && (!settings.transcriptionUrl.trim() || !settings.transcriptionModel.trim())) { setError("Укажите адрес и модель транскрибатора в настройках."); return; }
     if (settings.transcriptionMode === "local" && (!settings.whisperExecutable || !settings.whisperModelPath)) { setError("Укажите whisper-cli и модель в настройках транскрибатора."); return; }
@@ -81,11 +82,13 @@ export function SpeechCapture({ onText, compact = false, flushRef }: { onText: (
       const recordSegment = () => {
         if (!running.current || !stream.current) return;
         const rec = new MediaRecorder(new MediaStream(stream.current.getAudioTracks())); recorder.current = rec;
+        let resolveStop!: () => void;
+        stopEvent.current = new Promise<void>((resolve) => { resolveStop = resolve; });
         const parts: BlobPart[] = [];
         rec.ondataavailable = (event) => { if (event.data.size) parts.push(event.data); };
-        rec.onerror = () => { if (mounted.current) setError("Ошибка записи аудио."); stop(); };
+        rec.onerror = () => { captureError.current = "Ошибка записи аудио."; if (mounted.current) setError(captureError.current); stop(); };
         rec.onstop = () => {
-          if (!mounted.current) return;
+          if (!mounted.current) { resolveStop(); return; }
           const blob = new Blob(parts, { type: rec.mimeType || "audio/webm" });
           if (blob.size) {
             backlog.current += 1; if (mounted.current) setPending(backlog.current);
@@ -97,11 +100,12 @@ export function SpeechCapture({ onText, compact = false, flushRef }: { onText: (
                 if (mounted.current && text.trim()) onTextRef.current(text.trim());
               } catch (e) {
                 const message = errMsg(e);
-                if (!message.includes("не обнаружил речь")) { if (mounted.current) setError(message); stop(); }
+                if (!message.includes("не обнаружил речь")) { captureError.current = message; if (mounted.current) setError(message); stop(); }
               } finally { backlog.current -= 1; if (mounted.current) setPending(backlog.current); }
             });
-            if (backlog.current > 3) { if (mounted.current) setError("Распознавание не успевает за записью. Прослушивание остановлено; дождитесь обработки."); stop(); }
+            if (backlog.current > 3) { captureError.current = "Распознавание не успевает за записью. Прослушивание остановлено; дождитесь обработки."; if (mounted.current) setError(captureError.current); stop(); }
           }
+          resolveStop();
           if (running.current) recordSegment();
         };
         let heardSpeech = false;

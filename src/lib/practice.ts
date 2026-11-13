@@ -14,7 +14,12 @@ export interface PracticeSession {
   feedback?: PracticeAnalysis;
   draftAnswer?: string; answerLanguage?: AnswerLanguage;
 }
-export interface PracticeData { version: 1; sets: QuestionSet[]; sessions: PracticeSession[] }
+export interface PracticeSetupDraft {
+  title: string; role: string; vacancy: string; resume: string; resumeName: string;
+  interviewType: PracticeSession["interviewType"]; difficulty: PracticeSession["difficulty"];
+  raw: string; questions: Question[]; setId: string; count: number; random: boolean;
+}
+export interface PracticeData { version: 1; sets: QuestionSet[]; sessions: PracticeSession[]; draft?: PracticeSetupDraft; activeSessionId?: string }
 const EMPTY: PracticeData = { version: 1, sets: [], sessions: [] };
 let storePromise: Promise<Store> | undefined;
 const store = () => storePromise ??= load("practice.json", { autoSave: 150 });
