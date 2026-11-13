@@ -128,8 +128,8 @@ export function SettingsPage() {
   const [allModels, setAllModels] = useState(false);
   const [installedModels, setInstalledModels] = useState<LocalModel[]>([]);
   const [managingModel, setManagingModel] = useState(false);
-  async function refreshModels() { setInstalledModels(await invoke<LocalModel[]>("list_local_models")); }
-  useEffect(() => { void refreshModels().catch((e) => setTranscriptionError(errMsg(e))); }, []);
+  async function refreshModels(directory = settings.whisperModelsDir) { setInstalledModels(await invoke<LocalModel[]>("list_local_models", { directory })); }
+  useEffect(() => { void refreshModels().catch((e) => setTranscriptionError(errMsg(e))); }, [settings.whisperModelsDir]);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState<{ stage: string; downloaded: number; total: number } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -146,17 +146,23 @@ export function SettingsPage() {
       setTranscriptionError(errMsg(e));
     }
   }
+  async function pickModelsDir() {
+    try {
+      const directory = await open({ directory: true, multiple: false });
+      if (directory && !Array.isArray(directory)) { patch({ whisperModelsDir: directory }); setTranscriptionError(""); }
+    } catch (e) { setTranscriptionError(errMsg(e)); }
+  }
 
   async function selectInstalledModel(model: LocalModel) {
     if (englishOnly(model.id) && settings.transcriptionLanguage !== "en") { setTranscriptionError("Эта модель поддерживает только английский. Выберите английский язык или многоязычную модель."); return; }
     setManagingModel(true); setTranscriptionError(""); setTranscriptionStatus("");
-    try { const result = await invoke<{ executable: string; modelPath: string }>("activate_local_model", { model: model.id }); patch({ transcriptionMode: "local", whisperExecutable: result.executable, whisperModelPath: result.modelPath }); await saveSettings(); setTranscriptionStatus("Модель проверена и выбрана."); }
+    try { const result = await invoke<{ executable: string; modelPath: string }>("activate_local_model", { model: model.id, directory: settings.whisperModelsDir }); patch({ transcriptionMode: "local", whisperExecutable: result.executable, whisperModelPath: result.modelPath }); await saveSettings(); setTranscriptionStatus("Модель проверена и выбрана."); }
     catch (e) { setTranscriptionError(errMsg(e)); } finally { setManagingModel(false); }
   }
   async function removeInstalledModel(model: LocalModel) {
     if (!window.confirm(`Удалить модель ${tr(MODEL_LABELS[model.id] || model.id)}? Её можно будет скачать заново.`)) return;
     setManagingModel(true); setTranscriptionError(""); setTranscriptionStatus("");
-    try { await invoke("delete_local_model", { modelPath: model.modelPath }); if (samePath(settings.whisperModelPath, model.modelPath)) { patch({ whisperModelPath: "" }); await saveSettings(); } await refreshModels(); setTranscriptionStatus("Модель удалена. Остальные модели и движок сохранены."); }
+    try { await invoke("delete_local_model", { modelPath: model.modelPath, directory: settings.whisperModelsDir }); if (samePath(settings.whisperModelPath, model.modelPath)) { patch({ whisperModelPath: "" }); await saveSettings(); } await refreshModels(); setTranscriptionStatus("Модель удалена. Остальные модели и движок сохранены."); }
     catch (e) { setTranscriptionError(errMsg(e)); } finally { setManagingModel(false); }
   }
   async function installModel() {
@@ -167,7 +173,7 @@ export function SettingsPage() {
       const english = settings.transcriptionLanguage === "en";
       const model = english && localModel !== "large-v3-turbo-q5_0"
         ? localModel.replace(/^(tiny|base|small|medium)/, "$1.en") : localModel;
-      const result = await invoke<{ executable: string; modelPath: string }>("install_local_model", { model, onProgress: channel });
+      const result = await invoke<{ executable: string; modelPath: string }>("install_local_model", { model, directory: settings.whisperModelsDir, onProgress: channel });
       patch({ transcriptionMode: "local", whisperExecutable: result.executable, whisperModelPath: result.modelPath });
       await saveSettings(); await refreshModels();
       setTranscriptionStatus("Модель скачана и применена. Локальное распознавание готово к использованию.");
@@ -459,6 +465,7 @@ export function SettingsPage() {
         <div className="grid gap-3 md:grid-cols-2"><Field label={tr("Модель Deepgram")} hint={tr("nova-3 поддерживает русский")}><input className={cn(inputCls, "w-full")} value={settings.deepgramModel} onChange={(e) => { setTranscriptionStatus(""); patch({ deepgramModel: e.target.value }); }} /></Field><Field label={tr("API-ключ Deepgram")}><input type="password" className={cn(inputCls, "w-full")} value={settings.deepgramKey} onChange={(e) => { setTranscriptionStatus(""); setTranscriptionError(""); patch({ deepgramKey: e.target.value }); }} /></Field></div>
       
       </> : <><p className="text-xs text-mist-400">{tr("Локальная модель работает на компьютере. Для английского доступны специализированные модели; Large v3 Turbo подходит для разных языков.")}</p>
+        <Field label={tr("Папка для моделей Whisper")} hint={tr("Оставьте пустым для папки приложения. При смене папки ранее скачанные модели останутся на прежнем месте.")}><div className="flex gap-2"><input className={cn(inputCls, "w-full")} value={settings.whisperModelsDir} disabled={installing || managingModel} onChange={(e) => patch({ whisperModelsDir: e.target.value })} placeholder={tr("Папка приложения (по умолчанию)")} /><Button disabled={installing || managingModel} onClick={() => void pickModelsDir()}>{tr("Выбрать")}</Button></div></Field>
         
         <Field label={tr("Модель")}><select className={cn(inputCls, "w-full")} value={localModel} disabled={installing} onChange={(e) => setLocalModel(e.target.value)}><option value="tiny">{tr("Быстрая · около 75 МБ · ниже точность")}</option><option value="base">{tr("Сбалансированная · около 141 МБ")}</option><option value="small">{tr("Более точная · около 465 МБ · медленнее")}</option><option value="small-q5_1">{tr("Small Q5 · около 181 МиБ · компактная")}</option><option value="medium-q5_0">{tr("Medium Q5 · около 514 МиБ")}</option><option value="large-v3-turbo-q5_0">{tr("Large v3 Turbo Q5 · около 547 МиБ · многоязычная")}</option>{allModels && <optgroup label={tr("Все модели")}><option value="base-q5_1">BASE Q5_1 · 57 MiB</option><option value="base-q8_0">BASE Q8_0 · 78 MiB</option><option value="large-v1">LARGE V1 · 2951 MiB</option><option value="large-v2-q5_0">LARGE V2 Q5_0 · 1031 MiB</option><option value="large-v2-q8_0">LARGE V2 Q8_0 · 1579 MiB</option><option value="large-v2">LARGE V2 · 2951 MiB</option><option value="large-v3-q5_0">LARGE V3 Q5_0 · 1031 MiB</option><option value="large-v3-turbo-q8_0">LARGE V3 TURBO Q8_0 · 834 MiB</option><option value="large-v3-turbo">LARGE V3 TURBO · 1549 MiB</option><option value="large-v3">LARGE V3 · 2952 MiB</option><option value="medium-q8_0">MEDIUM Q8_0 · 785 MiB</option><option value="medium">MEDIUM · 1463 MiB</option><option value="small-q8_0">SMALL Q8_0 · 252 MiB</option><option value="tiny-q5_1">TINY Q5_1 · 31 MiB</option><option value="tiny-q8_0">TINY Q8_0 · 42 MiB</option></optgroup>}</select></Field>
         <label className="flex items-center gap-2 text-xs text-mist-400"><input type="checkbox" checked={allModels} onChange={(e) => { setAllModels(e.target.checked); if (!e.target.checked) setLocalModel("base"); }} />{tr("Показать все модели")}</label>

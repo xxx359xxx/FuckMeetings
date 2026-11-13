@@ -10,6 +10,7 @@ const translations: Record<string, { en: string; es: string }> = {
   "Дополнения могут быть вымышленными и будут помечены [проверить]. Проверьте их перед отправкой.": { en: "Suggestions may be fictional and will be marked [проверить]. Review them before sending.", es: "Las sugerencias pueden ser ficticias y se marcarán [проверить]. Revísalas antes de enviarlas." },
   "Пишу письмо…": { en: "Writing letter…", es: "Redactando carta…" },
   "Создать сопроводительное письмо": { en: "Create cover letter", es: "Crear carta de presentación" },
+  "Вставить для проверки ATS": { en: "Use for ATS review", es: "Usar para revisión ATS" },
   "Модель пишет сопроводительное письмо…": { en: "The model is writing a cover letter…", es: "El modelo está redactando la carta…" },
   "Сопроводительное письмо": { en: "Cover letter", es: "Carta de presentación" },
   "Сквозные клики": { en: "Click-through", es: "Clics a través" },
@@ -693,6 +694,18 @@ const translations: Record<string, { en: string; es: string }> = {
   "Файл модели": {
     "en": "Model file",
     "es": "Archivo del modelo"
+  },
+  "Папка для моделей Whisper": {
+    "en": "Whisper models folder",
+    "es": "Carpeta de modelos Whisper"
+  },
+  "Оставьте пустым для папки приложения. При смене папки ранее скачанные модели останутся на прежнем месте.": {
+    "en": "Leave blank to use the app folder. Previously downloaded models stay in their original folder.",
+    "es": "Déjalo vacío para usar la carpeta de la aplicación. Los modelos descargados permanecen en su carpeta anterior."
+  },
+  "Папка приложения (по умолчанию)": {
+    "en": "App folder (default)",
+    "es": "Carpeta de la aplicación (predeterminada)"
   },
   "Изменения также сохраняются автоматически. Эта настройка общая для интервью и встреч.": {
     "en": "Changes are saved automatically. This setting applies to interviews and meetings.",

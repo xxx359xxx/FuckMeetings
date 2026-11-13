@@ -58,6 +58,15 @@ fn valid(path: &Path, size: u64, expected: &str) -> bool {
     loop { match f.read(&mut b) { Ok(0) => break, Ok(n) => h.update(&b[..n]), Err(_) => return false } }
     format!("{:x}", h.finalize()) == expected
 }
+fn models_dir(app: &tauri::AppHandle, directory: &str) -> Result<PathBuf, String> {
+    if directory.trim().is_empty() {
+        return Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper"));
+    }
+    let path = PathBuf::from(directory.trim());
+    if !path.is_absolute() { return Err("Укажите абсолютный путь к папке моделей".into()); }
+    if !path.is_dir() { return Err("Папка моделей не найдена".into()); }
+    path.canonicalize().map_err(|e| e.to_string())
+}
 async fn download(url: &str, path: &Path, size: u64, hash: &str, stage: &str, progress: &Channel<InstallProgress>) -> Result<(), String> {
     if valid(path, size, hash) { let _ = progress.send(InstallProgress { stage: stage.into(), downloaded:size, total:size }); return Ok(()); }
     let tmp = path.with_extension("partial");
@@ -73,18 +82,20 @@ async fn download(url: &str, path: &Path, size: u64, hash: &str, stage: &str, pr
     if result.is_err() { let _ = std::fs::remove_file(tmp); } result
 }
 #[tauri::command]
-pub async fn install_local_model(app: tauri::AppHandle, model: String, on_progress: Channel<InstallProgress>) -> Result<InstalledModel, String> {
+pub async fn install_local_model(app: tauri::AppHandle, model: String, directory: String, on_progress: Channel<InstallProgress>) -> Result<InstalledModel, String> {
     if !cfg!(any(all(target_os = "windows", target_arch = "x86_64"), all(target_os = "macos", target_arch = "aarch64"))) { return Err("Автоматическая установка доступна для Windows x64 и Mac с Apple Silicon".into()); }
     let (filename, size, sha) = model_info(&model).ok_or("Неизвестная модель")?;
-    let root: PathBuf = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+    let root = models_dir(&app, &directory)?;
     std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     let exe = bundled_engine(&app)?;
     #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
     let exe = {
-    let archive = root.join("whisper-b5454.zip");
+    let engine_root = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+    std::fs::create_dir_all(&engine_root).map_err(|e| e.to_string())?;
+    let archive = engine_root.join("whisper-b5454.zip");
     download("https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip", &archive, 8928640, "6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb", "engine", &on_progress).await?;
-    let engine = root.join("engine-b5454"); std::fs::create_dir_all(&engine).map_err(|e| e.to_string())?;
+    let engine = engine_root.join("engine-b5454"); std::fs::create_dir_all(&engine).map_err(|e| e.to_string())?;
     let exe = engine.join("Release").join("whisper-cli.exe");
     if !exe.is_file() {
     let mut zip = zip::ZipArchive::new(std::fs::File::open(&archive).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -107,8 +118,8 @@ fn bundled_engine(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn delete_local_model(app: tauri::AppHandle, model_path: String) -> Result<(), String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+pub fn delete_local_model(app: tauri::AppHandle, model_path: String, directory: String) -> Result<(), String> {
+    let root = models_dir(&app, &directory)?;
     let path = PathBuf::from(model_path);
     let name = path.file_name().and_then(|s| s.to_str()).ok_or("Неверный путь модели")?;
     if !MODEL_IDS.iter().any(|id| model_info(id).map(|x| x.0 == name).unwrap_or(false)) { return Err("Эта модель не управляется приложением".into()); }
@@ -122,8 +133,8 @@ pub fn delete_local_model(app: tauri::AppHandle, model_path: String) -> Result<(
 #[serde(rename_all = "camelCase")]
 pub struct LocalModelInfo { id: String, model_path: String, size: u64, complete: bool }
 #[tauri::command]
-pub fn list_local_models(app: tauri::AppHandle) -> Result<Vec<LocalModelInfo>, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+pub fn list_local_models(app: tauri::AppHandle, directory: String) -> Result<Vec<LocalModelInfo>, String> {
+    let root = models_dir(&app, &directory)?;
     let mut models = Vec::new();
     for id in MODEL_IDS {
         let (filename, expected_size, _) = model_info(id).ok_or("Неизвестная модель")?;
@@ -133,8 +144,8 @@ pub fn list_local_models(app: tauri::AppHandle) -> Result<Vec<LocalModelInfo>, S
     Ok(models)
 }
 #[tauri::command]
-pub async fn activate_local_model(app: tauri::AppHandle, model: String) -> Result<InstalledModel, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper");
+pub async fn activate_local_model(app: tauri::AppHandle, model: String, directory: String) -> Result<InstalledModel, String> {
+    let root = models_dir(&app, &directory)?;
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     let bundled = bundled_engine(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
@@ -144,7 +155,7 @@ pub async fn activate_local_model(app: tauri::AppHandle, model: String) -> Resul
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         let exe = bundled;
         #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-        let exe = root.join("engine-b5454").join("Release").join("whisper-cli.exe");
+        let exe = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("whisper").join("engine-b5454").join("Release").join("whisper-cli.exe");
         if !exe.is_file() { return Err("Движок распознавания не найден. Нажмите «Скачать и применить», чтобы восстановить его.".into()); }
         Ok(InstalledModel { executable: exe.to_string_lossy().into_owned(), model_path: path.to_string_lossy().into_owned() })
     }).await.map_err(|e| e.to_string())?

@@ -8,8 +8,12 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  release:
+  build:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -20,10 +24,12 @@ jobs:
             label: Windows x64
             bundles: nsis
             config: ""
+            artifact: release-windows
           - os: macos-15
             label: macOS Apple Silicon
-            bundles: dmg
+            bundles: app,dmg
             config: "--config src-tauri/tauri.macos.conf.json"
+            artifact: release-macos
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -36,31 +42,96 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.99.1
+      - name: Verify release version and architecture
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          version = os.environ['EXPECTED_VERSION'].removeprefix('v')
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), version
+          assert json.loads(pathlib.Path('package.json').read_text())['version'] == version
+          assert json.loads(pathlib.Path('src-tauri/tauri.conf.json').read_text())['version'] == version
+          assert re.search(r'^version = "' + re.escape(version) + r'"$', pathlib.Path('src-tauri/Cargo.toml').read_text(), re.M)
+          PY
+          if [ "$RUNNER_OS" = macOS ]; then test "$(uname -m)" = arm64; fi
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build macOS audio and Whisper resources
         if: runner.os == 'macOS'
         run: bash scripts/build-macos-resources.sh
-      - name: Build and upload signed release artifacts
-        uses: tauri-apps/tauri-action@v0
+      - name: Build signed updater and installer artifacts
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          pnpm exec tauri build --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json ${{ matrix.config }}
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          if [ "$RUNNER_OS" = macOS ]; then
+            cp src-tauri/target/release/bundle/dmg/*.dmg release-artifacts/
+            cp src-tauri/target/release/bundle/macos/*.app.tar.gz release-artifacts/
+            cp src-tauri/target/release/bundle/macos/*.app.tar.gz.sig release-artifacts/
+          else
+            cp src-tauri/target/release/bundle/nsis/*-setup.exe release-artifacts/
+            cp src-tauri/target/release/bundle/nsis/*-setup.exe.sig release-artifacts/
+          fi
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: FuckMeetings ${{ github.ref_name }}
-          releaseBody: |
-            ## Исправления
-            - Ускорено появление распознанной речи в оверлее.
-            - Потоковые ответы остаются на месте, пока пользователь читает предыдущий текст.
-            - Закрытие главного окна завершает приложение и запущенные CLI-процессы.
+          name: ${{ matrix.artifact }}
+          path: release-artifacts/*
+          if-no-files-found: error
+          retention-days: 7
 
-            Автообновление включает подписанные updater-артефакты и `latest.json`.
-          releaseDraft: true
-          prerelease: false
-          uploadUpdaterJson: true
-          args: >-
-            --bundles ${{ matrix.bundles }}
-            --config src-tauri/tauri.release.conf.json
-            ${{ matrix.config }}
+  publish:
+    name: Prepare draft release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-artifacts
+          merge-multiple: true
+      - name: Create merged updater manifest
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.parse
+          directory = pathlib.Path('release-artifacts')
+          version = os.environ['RELEASE_TAG'].removeprefix('v')
+          platforms = {}
+          for pattern, platform in [('*.app.tar.gz', 'darwin-aarch64'), ('*-setup.exe', 'windows-x86_64')]:
+              matches = list(directory.glob(pattern))
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected one {pattern}, found {len(matches)}')
+              archive = matches[0]
+              signature = archive.with_name(archive.name + '.sig').read_text().strip()
+              if not signature:
+                  raise SystemExit(f'Empty signature for {archive.name}')
+              url = 'https://github.com/{}/releases/download/{}/{}'.format(
+                  os.environ['REPOSITORY'], urllib.parse.quote(os.environ['RELEASE_TAG']), urllib.parse.quote(archive.name))
+              platforms[platform] = {'signature': signature, 'url': url}
+          if len(list(directory.glob('*.dmg'))) != 1 or len(list(directory.glob('*-setup.exe'))) != 1:
+              raise SystemExit('Expected one DMG and one Windows installer')
+          manifest = {'version': version, 'notes': 'FuckMeetings ' + os.environ['RELEASE_TAG'], 'pub_date': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'), 'platforms': platforms}
+          (directory / 'latest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+          PY
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft --prerelease=false
+          else
+            gh release create "$RELEASE_TAG" --draft --title "FuckMeetings $RELEASE_TAG" --notes 'Signed macOS and Windows installers with auto-update artifacts.'
+          fi
+          gh release upload "$RELEASE_TAG" release-artifacts/* --clobber

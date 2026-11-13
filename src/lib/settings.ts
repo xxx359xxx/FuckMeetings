@@ -28,6 +28,7 @@ export function makeDefaultSettings(): Settings {
     deepgramModel: "nova-3",
     whisperExecutable: "",
     whisperModelPath: "",
+    whisperModelsDir: "",
     transcriptionUrl: "https://api.openai.com/v1",
     transcriptionKey: "",
     transcriptionModel: "gpt-transcribe",

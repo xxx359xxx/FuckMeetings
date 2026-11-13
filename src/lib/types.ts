@@ -49,6 +49,7 @@ export interface Settings {
   deepgramModel: string;
   whisperExecutable: string;
   whisperModelPath: string;
+  whisperModelsDir: string;
   transcriptionUrl: string;
   transcriptionKey: string;
   transcriptionModel: string;

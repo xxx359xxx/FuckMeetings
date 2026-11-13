@@ -101,6 +101,15 @@ export function ResumePage({
   const [error, setError] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
 
+  function useTailoredForReview() {
+    if (!tailored) return;
+    setResumeText(tailored.markdown);
+    setResumeName(null);
+    setAnalysis(null);
+    setAnalysisRaw(null);
+    setError(null);
+  }
+
   async function loadResume() {
     try {
       const picked = await open({
@@ -722,6 +731,13 @@ export function ResumePage({
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={busy !== null}
+                    onClick={useTailoredForReview}
+                  >
+                    <Sparkles size={14} /> {tr("Вставить для проверки ATS")}
+                  </Button>
                   
                   <CopyButton text={tailored.markdown} />
                   
