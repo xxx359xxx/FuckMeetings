@@ -1,0 +1,53 @@
+name: Recover signed release
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful build run ID
+        required: true
+      tag:
+        description: Release tag
+        required: true
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-artifacts
+          merge-multiple: true
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare and publish draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          python3 - <<'PYSCRIPT'
+          import json, os, pathlib, urllib.parse, datetime
+          d = pathlib.Path('release-artifacts')
+          tag = os.environ['RELEASE_TAG']
+          assert tag == 'v1.0.7'
+          platforms = {}
+          for pattern, platform in [('*.app.tar.gz', 'darwin-aarch64'), ('*-setup.exe', 'windows-x86_64')]:
+              files = list(d.glob(pattern))
+              assert len(files) == 1
+              f = files[0]
+              signature = f.with_name(f.name + '.sig').read_text().strip()
+              assert signature
+              platforms[platform] = {'signature': signature, 'url': f'https://github.com/{os.environ["GH_REPO"]}/releases/download/{tag}/{urllib.parse.quote(f.name)}'}
+          assert len(list(d.glob('*.dmg'))) == 1
+          (d / 'latest.json').write_text(json.dumps({'version': tag[1:], 'notes': 'Выбор папки моделей Whisper и проверка резюме.', 'pub_date': datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'), 'platforms': platforms}, ensure_ascii=False, indent=2))
+          PYSCRIPT
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft
+          else
+            gh release create "$RELEASE_TAG" --draft --title "FuckMeetings $RELEASE_TAG" --notes 'Выбор папки моделей Whisper и проверка резюме.'
+          fi
+          gh release upload "$RELEASE_TAG" release-artifacts/* --clobber
